@@ -316,6 +316,9 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_SYSTEM_PROCESSOR=aarch64",
             "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc",
             "-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++",
+            // libpng's NEON assembly must use the target assembler, not the
+            // host one (project() now enables ASM; be explicit for safety).
+            "-DCMAKE_ASM_COMPILER=aarch64-linux-gnu-gcc",
         ),
     )
     // Cross-compile the MinGW archive with the x86_64-w64-mingw32 toolchain

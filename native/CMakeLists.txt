@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.16)
 # (-DCMAKE_SYSTEM_NAME / -DCMAKE_C(XX)_COMPILER / NDK toolchain file /
 # -DCMAKE_OSX_ARCHITECTURES); nothing here is host-specific.
 
-project(opencv_kmp_native LANGUAGES C CXX)
+project(opencv_kmp_native LANGUAGES C CXX ASM)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
