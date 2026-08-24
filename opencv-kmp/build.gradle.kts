@@ -316,6 +316,10 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_SYSTEM_PROCESSOR=aarch64",
             "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc",
             "-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++",
+            // GCC's outline atomics emit __aarch64_* helper calls that the
+            // Kotlin/Native sysroot cannot resolve; keep atomics inline.
+            "-DCMAKE_C_FLAGS=-mno-outline-atomics",
+            "-DCMAKE_CXX_FLAGS=-mno-outline-atomics",
             // libpng's NEON assembly must use the target assembler, not the
             // host one (project() now enables ASM; be explicit for safety).
             "-DCMAKE_ASM_COMPILER=aarch64-linux-gnu-gcc",

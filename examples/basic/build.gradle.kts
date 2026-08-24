@@ -35,7 +35,13 @@ kotlin {
 
     linuxX64 { binaries.executable() }
     // Link-tested on Linux CI with the aarch64 cross toolchain; not runnable there.
-    linuxArm64 { binaries.executable() }
+    // The embedded OpenCV static library is compiled with the GNU cross
+    // toolchain, so the link needs the target's libstdc++.
+    linuxArm64 {
+        binaries.executable {
+            linkerOpts("-L/usr/aarch64-linux-gnu/lib", "-lstdc++")
+        }
+    }
 
     mingwX64 { binaries.executable() }
 
