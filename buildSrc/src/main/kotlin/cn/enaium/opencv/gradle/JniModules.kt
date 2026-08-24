@@ -78,7 +78,10 @@ object JniModules {
 
         val buildability: Pair<Boolean, List<String>> = when {
             classifier == "linux-x86_64" ->
-                (host.isLinux && hostArch in setOf("amd64", "x86_64")) to emptyList()
+                (host.isLinux && hostArch in setOf("amd64", "x86_64")) to listOf(
+                    "-DWITH_KLEIDICV=OFF",
+                    "-DWITH_CAROTENE=OFF",
+                )
 
             classifier == "linux-aarch64" ->
                 ((host.isLinux && hostArch in setOf("aarch64", "arm64")) ||
@@ -97,7 +100,10 @@ object JniModules {
                 (host.isMacOsX && arch in setOf("arm64", "x86_64")) to listOf(
                     "-DCMAKE_SYSTEM_NAME=Darwin",
                     "-DCMAKE_OSX_ARCHITECTURES=${if (arch == "arm64") "arm64" else "x86_64"}",
-                )
+                ) + if (arch == "x86_64") listOf(
+                    "-DWITH_KLEIDICV=OFF",
+                    "-DWITH_CAROTENE=OFF",
+                ) else emptyList()
             }
 
             classifier == "windows-x86_64" ->
@@ -105,6 +111,8 @@ object JniModules {
                     "-G", "MinGW Makefiles",
                     "-DCMAKE_C_COMPILER=gcc.exe",
                     "-DCMAKE_CXX_COMPILER=g++.exe",
+                    "-DWITH_KLEIDICV=OFF",
+                    "-DWITH_CAROTENE=OFF",
                 )
 
             classifier.startsWith("android-") -> {
@@ -120,7 +128,10 @@ object JniModules {
                             "-DANDROID_ABI=$abi",
                             "-DANDROID_PLATFORM=android-24",
                             "-DANDROID_STL=c++_static",
-                        )
+                        ) + if (abi in setOf("x86", "x86_64")) listOf(
+                            "-DWITH_KLEIDICV=OFF",
+                            "-DWITH_CAROTENE=OFF",
+                        ) else emptyList()
                         )
             }
 

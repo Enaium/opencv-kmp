@@ -294,10 +294,19 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_OSX_ARCHITECTURES=x86_64",
             "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
             "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0",
+            // ARM-only acceleration HALs misdetect on x86 builds from ARM hosts
+            "-DWITH_KLEIDICV=OFF",
+            "-DWITH_CAROTENE=OFF",
         ),
     )
 } else if (hostOs.isLinux) {
-    registerNativeBuildTasks("linuxX64")
+    registerNativeBuildTasks(
+        "linuxX64",
+        listOf(
+            "-DWITH_KLEIDICV=OFF",
+            "-DWITH_CAROTENE=OFF",
+        ),
+    )
     // linuxArm64 is cross-compiled on x86_64 hosts with the aarch64-linux-gnu
     // toolchain (canBuildNativeTarget gates on it).
     registerNativeBuildTasks(
@@ -318,6 +327,8 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_SYSTEM_PROCESSOR=x86_64",
             "-DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc",
             "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
+            "-DWITH_KLEIDICV=OFF",
+            "-DWITH_CAROTENE=OFF",
         ),
     )
 }
@@ -325,8 +336,6 @@ if (hostOs.isMacOsX) {
 // Windows-host klib builds would need an MSVC-compatible archive pipeline;
 // the mingwX64 klib is produced by the Linux CI job instead.
 
-// Android native targets cross-compile OpenCV with the NDK (see
-// canBuildNativeTarget); the NDK can be used from any host OS.
 androidNdkPath()?.let { ndk ->
     val toolchain = "$ndk/build/cmake/android.toolchain.cmake"
     val androidFlags = { abi: String ->
@@ -335,7 +344,10 @@ androidNdkPath()?.let { ndk ->
             "-DANDROID_ABI=$abi",
             "-DANDROID_PLATFORM=android-24",
             "-DANDROID_STL=c++_static",
-        )
+        ) + if (abi in setOf("x86", "x86_64")) listOf(
+            "-DWITH_KLEIDICV=OFF",
+            "-DWITH_CAROTENE=OFF",
+        ) else emptyList()
     }
     registerNativeBuildTasks("androidNativeArm64", androidFlags("arm64-v8a"))
     registerNativeBuildTasks("androidNativeArm32", androidFlags("armeabi-v7a"))
