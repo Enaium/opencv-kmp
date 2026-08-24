@@ -466,7 +466,8 @@ class ExtendedApiTest {
 
     @Test
     fun floodFillPaintsConnectedRegion() {
-        mat(5, 5, MatType.CV_8UC1).use { plain ->
+        // Mat() does not initialize memory; tests must not rely on zeros
+        zeros(5, 5, MatType.CV_8UC1).use { plain ->
             val painted = plain.floodFill(2, 2, newValue = Scalar.all(200.0))
             assertEquals(25, painted)
             assertEquals(200.0, plain[0, 0])
@@ -501,7 +502,7 @@ class ExtendedApiTest {
 
     @Test
     fun houghFindsSyntheticLine() {
-        mat(20, 20, MatType.CV_8UC1).use { scene ->
+        zeros(20, 20, MatType.CV_8UC1).use { scene ->
             for (c in 0 until 20) scene[10, c] = 255.0
             val lines = scene.houghLinesP(threshold = 15)
             assertTrue(lines.total > 0, "expected at least one segment")
@@ -533,7 +534,7 @@ class ExtendedApiTest {
 
     @Test
     fun connectedComponentsCountsTwoBlobs() {
-        mat(6, 6, MatType.CV_8UC1).use { blobs ->
+        zeros(6, 6, MatType.CV_8UC1).use { blobs ->
             blobs[0, 0] = 255.0
             blobs[5, 5] = 255.0
             val (count, labels) = blobs.connectedComponents(connectivity = 8)
@@ -572,7 +573,7 @@ class ExtendedApiTest {
 
     @Test
     fun drawingPrimitivesLeaveMarks() {
-        mat(20, 20, MatType.CV_8UC1).use { canvas ->
+        zeros(20, 20, MatType.CV_8UC1).use { canvas ->
             canvas.arrowedLine(Point(0, 0), Point(19, 19), Scalar.all(200.0))
             canvas.drawMarker(Point(10, 10), Scalar.all(220.0))
             canvas.ellipse(center = Point(10, 10), axes = Size(8, 4), endAngle = 360.0, color = Scalar.all(50.0))
