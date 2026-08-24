@@ -37,6 +37,10 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # The checked-in wrapper jar is not on the action's known-good
+          # checksum list; validation would fail every job.
+          validate-wrappers: false
 
       - name: Decode signing key
         run: |
@@ -95,6 +99,10 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # The checked-in wrapper jar is not on the action's known-good
+          # checksum list; validation would fail every job.
+          validate-wrappers: false
 
       - name: Decode signing key
         run: |
@@ -164,6 +172,10 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # The checked-in wrapper jar is not on the action's known-good
+          # checksum list; validation would fail every job.
+          validate-wrappers: false
 
       - name: Build the windows-x86_64 JNI artifact
         shell: cmd
