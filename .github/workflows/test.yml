@@ -139,10 +139,10 @@ jobs:
           ./gradlew --no-daemon --stacktrace
           :examples:basic:linkDebugExecutableLinuxArm64
           :examples:basic:linkDebugExecutableMingwX64
-          :examples:basic:linkMainDebugSharedLinuxArm64
-          :examples:basic:linkMainDebugSharedLinuxArm32
-          :examples:basic:linkMainDebugSharedLinuxX64
-          :examples:basic:linkMainDebugSharedLinuxX86
+          :examples:basic:linkMainDebugSharedAndroidNativeArm64
+          :examples:basic:linkMainDebugSharedAndroidNativeArm32
+          :examples:basic:linkMainDebugSharedAndroidNativeX64
+          :examples:basic:linkMainDebugSharedAndroidNativeX86
 
       - name: Run example (linuxX64)
         run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
