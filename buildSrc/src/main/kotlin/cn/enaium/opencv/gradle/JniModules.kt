@@ -90,7 +90,10 @@ object JniModules {
                 )
 
             classifier.startsWith("darwin-") -> {
-                val arch = parts.last()
+                val arch = when (parts.last()) {
+                    "aarch64" -> "arm64"
+                    else -> parts.last()
+                }
                 (host.isMacOsX && arch in setOf("arm64", "x86_64")) to listOf(
                     "-DCMAKE_SYSTEM_NAME=Darwin",
                     "-DCMAKE_OSX_ARCHITECTURES=${if (arch == "arm64") "arm64" else "x86_64"}",

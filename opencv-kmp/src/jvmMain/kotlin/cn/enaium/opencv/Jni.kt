@@ -133,4 +133,297 @@ internal object Jni {
     external fun imwrite(path: String, mat: Long): Boolean
     external fun imencode(ext: String, mat: Long): ByteArray
     external fun imdecode(data: ByteArray, flags: Int): Long
+
+    // ---- core: Mat shape / algebra
+
+    external fun matReshape(mat: Long, channels: Int, rows: Int): Long
+    external fun matRowRange(mat: Long, start: Int, end: Int): Long
+    external fun matColRange(mat: Long, start: Int, end: Int): Long
+    external fun matDiag(mat: Long, d: Int): Long
+    external fun matSetIdentity(mat: Long, scale: Double)
+    external fun matDot(a: Long, b: Long): Double
+    external fun matInv(mat: Long, method: Int): Long
+    external fun matDeterminant(mat: Long): Double
+    external fun matTrace(mat: Long): DoubleArray
+
+    // ---- core: array operations
+
+    external fun splitChannels(src: Long): LongArray
+    external fun mergeChannels(channels: LongArray): Long
+    external fun hconcat(a: Long, b: Long): Long
+    external fun vconcat(a: Long, b: Long): Long
+    external fun norm(src: Long, normType: Int): Double
+    external fun normDiff(a: Long, b: Long, normType: Int): Double
+    external fun normalize(
+        src: Long,
+        alpha: Double,
+        beta: Double,
+        normType: Int,
+        dtype: Int,
+    ): Long
+
+    external fun lut(src: Long, lut: Long): Long
+    external fun rotate(src: Long, code: Int): Long
+    external fun copyMakeBorder(
+        src: Long,
+        top: Int,
+        bottom: Int,
+        left: Int,
+        right: Int,
+        borderType: Int,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+    ): Long
+
+    external fun addWeighted(a: Long, alpha: Double, b: Long, beta: Double, gamma: Double): Long
+    external fun convertScaleAbs(src: Long, alpha: Double, beta: Double): Long
+    external fun compare(a: Long, b: Long, op: Int): Long
+    external fun solve(a: Long, b: Long, flags: Int): Long
+    external fun repeat(src: Long, nx: Int, ny: Int): Long
+    external fun transform(src: Long, m: Long): Long
+    external fun perspectiveTransform(src: Long, m: Long): Long
+    external fun pow(src: Long, power: Double): Long
+    external fun sqrt(src: Long): Long
+    external fun exp(src: Long): Long
+    external fun log(src: Long): Long
+    external fun magnitude(x: Long, y: Long): Long
+    external fun phase(x: Long, y: Long, angleInDegrees: Boolean): Long
+    external fun cartToPolar(x: Long, y: Long, angleInDegrees: Boolean): LongArray
+    external fun polarToCart(magnitude: Long, angle: Long, angleInDegrees: Boolean): LongArray
+    external fun patchNaNs(mat: Long, value: Double)
+    external fun findNonZero(src: Long): Long
+    external fun hasNonZero(src: Long): Boolean
+    external fun sort(src: Long, flags: Int): Long
+    external fun sortIdx(src: Long, flags: Int): Long
+    external fun reduce(src: Long, dim: Int, rtype: Int, dtype: Int): Long
+    external fun reduceArgMax(src: Long, dim: Int): Long
+    external fun reduceArgMin(src: Long, dim: Int): Long
+    external fun extractChannel(src: Long, coi: Int): Long
+    external fun insertChannel(src: Long, dst: Long, coi: Int)
+    external fun randu(dst: Long, a0: Double, a1: Double, a2: Double, a3: Double,
+                       b0: Double, b1: Double, b2: Double, b3: Double)
+    external fun randn(dst: Long, a0: Double, a1: Double, a2: Double, a3: Double,
+                       b0: Double, b1: Double, b2: Double, b3: Double)
+    external fun psnr(a: Long, b: Long, r: Double): Double
+    external fun dft(src: Long, flags: Int): Long
+    external fun idft(src: Long, flags: Int): Long
+    external fun dct(src: Long, flags: Int): Long
+    external fun idct(src: Long, flags: Int): Long
+    external fun getOptimalDftSize(rowsize: Int): Int
+    external fun mulSpectrums(a: Long, b: Long, conjFlag: Boolean, dftRows: Boolean): Long
+    external fun divSpectrums(a: Long, b: Long, conjFlag: Boolean): Long
+    external fun gemm(a: Long, b: Long, alpha: Double, c: Long, gamma: Double): Long
+    external fun eigen(src: Long): LongArray
+    external fun numThreads(): Int
+    external fun setNumThreads(count: Int)
+    external fun buildInformation(): String
+
+    // ---- imgproc: filters
+
+    external fun blur(src: Long, kernelWidth: Int, kernelHeight: Int): Long
+    external fun boxFilter(
+        src: Long,
+        ddepth: Int,
+        kernelWidth: Int,
+        kernelHeight: Int,
+        normalize: Boolean,
+    ): Long
+
+    external fun sqrBoxFilter(src: Long, ddepth: Int, kernelWidth: Int, kernelHeight: Int): Long
+    external fun bilateralFilter(src: Long, d: Int, sigmaColor: Double, sigmaSpace: Double): Long
+    external fun stackBlur(src: Long, kernelSize: Int): Long
+    external fun erode(src: Long, kernel: Long, iterations: Int): Long
+    external fun dilate(src: Long, kernel: Long, iterations: Int): Long
+    external fun morphologyEx(src: Long, op: Int, kernel: Long, iterations: Int): Long
+    external fun getStructuringElement(shape: Int, width: Int, height: Int): Long
+    external fun getGaussianKernel(ksize: Int, sigma: Double): Long
+    external fun filter2D(src: Long, kernel: Long, ddepth: Int, delta: Double): Long
+    external fun pyrDown(src: Long): Long
+    external fun pyrUp(src: Long): Long
+
+    // ---- imgproc: geometry / warps
+
+    external fun warpAffine(src: Long, m: Long, width: Int, height: Int, flags: Int): Long
+    external fun warpPerspective(src: Long, m: Long, width: Int, height: Int, flags: Int): Long
+    external fun remap(src: Long, map1: Long, map2: Long, interpolation: Int): Long
+    external fun warpPolar(
+        src: Long,
+        radius: Int,
+        centerX: Double,
+        centerY: Double,
+        maxRadius: Double,
+        flags: Int,
+    ): Long
+
+    external fun getAffineTransform(
+        sx0: Double, sy0: Double, sx1: Double, sy1: Double, sx2: Double, sy2: Double,
+        dx0: Double, dy0: Double, dx1: Double, dy1: Double, dx2: Double, dy2: Double,
+    ): Long
+
+    external fun invertAffineTransform(m: Long): Long
+    external fun getPerspectiveTransform(
+        sx0: Double, sy0: Double, sx1: Double, sy1: Double,
+        sx2: Double, sy2: Double, sx3: Double, sy3: Double,
+        dx0: Double, dy0: Double, dx1: Double, dy1: Double,
+        dx2: Double, dy2: Double, dx3: Double, dy3: Double,
+    ): Long
+
+    external fun getRotationMatrix2D(cx: Double, cy: Double, angle: Double, scale: Double): Long
+    external fun getRectSubPix(src: Long, width: Int, height: Int, cx: Double, cy: Double): Long
+    external fun undistort(src: Long, cameraMatrix: Long, distCoeffs: Long): Long
+
+    // ---- imgproc: color / histogram
+
+    external fun demosaicing(src: Long, code: Int): Long
+    external fun applyColormap(src: Long, colormap: Int): Long
+    external fun applyColormapUser(src: Long, userColor: Long): Long
+    external fun calcHist(src: Long, channel: Int, histSize: Int, minValue: Float, maxValue: Float): Long
+    external fun calcBackProject(
+        src: Long,
+        channel: Int,
+        hist: Long,
+        minValue: Float,
+        maxValue: Float,
+    ): Long
+
+    external fun compareHist(h1: Long, h2: Long, method: Int): Double
+    external fun equalizeHist(src: Long): Long
+
+    // ---- imgproc: segmentation / contours / features
+
+    external fun floodFill(
+        image: Long,
+        seedX: Int,
+        seedY: Int,
+        n0: Double, n1: Double, n2: Double, n3: Double,
+        lo0: Double, lo1: Double, lo2: Double, lo3: Double,
+        up0: Double, up1: Double, up2: Double, up3: Double,
+        flags: Int,
+    ): Int
+
+    external fun watershed(image: Long, markers: Long)
+    external fun findContours(src: Long, mode: Int, method: Int): ByteArray
+    external fun drawContours(
+        image: Long,
+        flat: ByteArray,
+        contourIndex: Int,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    external fun contourAreaBytes(flat: ByteArray): Double
+    external fun arcLengthBytes(flat: ByteArray, closed: Boolean): Double
+    external fun boundingRect(flat: ByteArray): IntArray
+    external fun approxPolyDP(flat: ByteArray, epsilon: Double, closed: Boolean): ByteArray
+    external fun minAreaRect(flat: ByteArray): DoubleArray
+    external fun minEnclosingCircle(flat: ByteArray): DoubleArray
+    external fun moments(arr: Long, binaryImage: Boolean): DoubleArray
+    external fun matchShapes(a: Long, b: Long, method: Int): Double
+    external fun houghLines(src: Long, rho: Double, theta: Double, threshold: Int, srn: Double, stn: Double): Long
+    external fun houghLinesP(
+        src: Long,
+        rho: Double,
+        theta: Double,
+        threshold: Int,
+        minLineLength: Double,
+        maxLineGap: Double,
+    ): Long
+
+    external fun houghCircles(
+        src: Long,
+        method: Int,
+        dp: Double,
+        minDist: Double,
+        param1: Double,
+        param2: Double,
+        minRadius: Int,
+        maxRadius: Int,
+    ): Long
+
+    external fun cornerHarris(src: Long, blockSize: Int, ksize: Int, k: Double): Long
+    external fun cornerMinEigenVal(src: Long, blockSize: Int, ksize: Int): Long
+    external fun goodFeaturesToTrack(
+        src: Long,
+        maxCorners: Int,
+        qualityLevel: Double,
+        minDistance: Double,
+        blockSize: Int,
+        useHarrisDetector: Boolean,
+        k: Double,
+    ): Long
+
+    external fun matchTemplate(image: Long, templ: Long, method: Int): Long
+    external fun distanceTransform(src: Long, distanceType: Int, maskSize: Int): Long
+    external fun integral(src: Long, sdepth: Int): Long
+    external fun connectedComponents(src: Long, connectivity: Int, ltype: Int): LongArray
+    external fun connectedComponentsWithStats(src: Long, connectivity: Int, ltype: Int): LongArray
+    external fun pyrMeanShiftFiltering(src: Long, sp: Double, sr: Double, maxLevel: Int): Long
+    external fun thresholdWithMask(src: Long, mask: Long, dst: Long, thresh: Double, maxVal: Double, type: Int): Double
+    external fun createHanningWindow(width: Int, height: Int, type: Int): Long
+    external fun accumulate(src: Long, dst: Long)
+    external fun accumulateSquare(src: Long, dst: Long)
+    external fun accumulateProduct(a: Long, b: Long, dst: Long)
+    external fun accumulateWeighted(src: Long, dst: Long, alpha: Double)
+
+    // ---- imgproc: drawing (in-place)
+
+    external fun arrowedLine(
+        mat: Long,
+        x1: Int, y1: Int, x2: Int, y2: Int,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    external fun drawMarker(
+        mat: Long,
+        x: Int,
+        y: Int,
+        markerType: Int,
+        size: Int,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    external fun ellipse(
+        mat: Long,
+        cx: Int,
+        cy: Int,
+        axesX: Int,
+        axesY: Int,
+        angle: Double,
+        startAngle: Double,
+        endAngle: Double,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    external fun fillPoly(
+        mat: Long,
+        flat: ByteArray,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    external fun polylines(
+        mat: Long,
+        flat: ByteArray,
+        closed: Boolean,
+        v0: Double, v1: Double, v2: Double, v3: Double,
+        thickness: Int,
+    )
+
+    // ---- imgproc: CLAHE
+
+    external fun claheCreate(clipLimit: Double, tileWidth: Int, tileHeight: Int): Long
+    external fun claheApply(clahe: Long, src: Long): Long
+    external fun claheSetClipLimit(clahe: Long, clipLimit: Double)
+    external fun claheRelease(clahe: Long)
+
+    // ---- imgcodecs additions
+
+    external fun imcount(path: String): Int
+    external fun haveImageReader(ext: String): Boolean
+    external fun haveImageWriter(ext: String): Boolean
+    external fun imwriteParams(path: String, mat: Long, params: IntArray): Boolean
+    external fun imencodeParams(ext: String, mat: Long, params: IntArray): ByteArray
+    external fun setRngSeed(seed: Long)
 }

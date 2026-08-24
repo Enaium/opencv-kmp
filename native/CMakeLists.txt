@@ -46,7 +46,10 @@ file(MAKE_DIRECTORY "${CVK_OUTPUT_DIR}")
 # end up inside shared libraries (JNI) and PIE executables (Kotlin/Native).
 # ---------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(BUILD_LIST "core,imgproc,imgcodecs" CACHE STRING "" FORCE)
+# geometry (contours, affine/perspective helpers) and features (corner
+# detectors) are OpenCV 5's new homes for classic imgproc APIs the binding
+# exposes; imgproc already pulls them in, features is added explicitly.
+set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
 
 foreach(_opt
         BUILD_TESTS
@@ -121,13 +124,17 @@ target_include_directories(cvk_shim PRIVATE
         # source tree (no install step involved).
         "${OPENCV_SOURCE_DIR}/include"
         "${OPENCV_SOURCE_DIR}/modules/core/include"
+        "${OPENCV_SOURCE_DIR}/modules/geometry/include"
         "${OPENCV_SOURCE_DIR}/modules/imgproc/include"
+        "${OPENCV_SOURCE_DIR}/modules/flann/include"
         "${OPENCV_SOURCE_DIR}/modules/imgcodecs/include"
+        "${OPENCV_SOURCE_DIR}/modules/features/include"
         # Configure-time generated headers (opencv_modules.hpp, cvconfig.h).
         "${CMAKE_BINARY_DIR}")
 # The shim only ever sees plain C ABI calls from consumers, but it links
 # against C++ OpenCV, hence C++ runtime linkage via the opencv targets.
-target_link_libraries(cvk_shim PUBLIC opencv_core opencv_imgproc opencv_imgcodecs)
+target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
+        opencv_features opencv_imgcodecs)
 
 if(CVK_BUILD_JNI)
     if(CVK_JNI_BRIDGE STREQUAL "")
@@ -170,14 +177,28 @@ endif()
 
 set(CVK_COPIED_LIBS "")
 
-foreach(_t cvk_shim opencv_imgcodecs opencv_imgproc opencv_flann opencv_geometry
-        opencv_core)
+foreach(_t cvk_shim opencv_imgcodecs opencv_features opencv_imgproc opencv_flann
+        opencv_geometry opencv_core)
     set(_out "${CVK_OUTPUT_DIR}/lib${_t}.a")
     add_custom_command(OUTPUT "${_out}"
             COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${_t}>" "${_out}"
             DEPENDS ${_t}
             VERBATIM)
     list(APPEND CVK_COPIED_LIBS "${_out}")
+endforeach()
+
+# ARM acceleration libraries (KleidiCV HAL + carotene/tegra). They exist only
+# on ARM configurations, so each copy is guarded by target existence; the
+# Gradle embedding lists them only for ARM targets.
+foreach(_t kleidicv kleidicv_hal kleidicv_thread tegra_hal)
+    if(TARGET ${_t})
+        set(_out "${CVK_OUTPUT_DIR}/lib${_t}.a")
+        add_custom_command(OUTPUT "${_out}"
+                COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${_t}>" "${_out}"
+                DEPENDS ${_t}
+                VERBATIM)
+        list(APPEND CVK_COPIED_LIBS "${_out}")
+    endif()
 endforeach()
 
 # Bundled codecs zlib/libpng/libjpeg-turbo; building opencv_core guarantees

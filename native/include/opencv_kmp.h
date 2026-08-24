@@ -44,6 +44,9 @@ extern "C" {
 
 typedef struct cvk_mat cvk_mat_t;
 
+/** Opaque handle to a cv::Ptr<cv::CLAHE>. */
+typedef struct cvk_clahe cvk_clahe_t;
+
 /** Four-component color value backing cv::Scalar. */
 typedef struct cvk_scalar {
     double v0;
@@ -214,6 +217,477 @@ cvk_mat_t *cvk_imdecode(const unsigned char *data, size_t len, int flags);
 /** Releases a buffer produced by cvk_imencode. */
 void cvk_free_buffer(unsigned char *buffer);
 
+/* =========================================================================
+ * Mat members (core)
+ * ========================================================================= */
+
+/** mat.reshape(channels, rows); rows==0 keeps the row count. */
+cvk_mat_t *cvk_mat_reshape(const cvk_mat_t *mat, int channels, int rows);
+
+/** Row range sharing pixels, like mat.rowRange(start,end) (end exclusive). */
+cvk_mat_t *cvk_mat_row_range(const cvk_mat_t *mat, int start, int end);
+
+/** Column range sharing pixels (end exclusive). */
+cvk_mat_t *cvk_mat_col_range(const cvk_mat_t *mat, int start, int end);
+
+/** mat.diag(d): d==0 main diagonal, d>0 below, d<0 above. */
+cvk_mat_t *cvk_mat_diag(const cvk_mat_t *mat, int d);
+
+/** Scales the diagonal by `scale` in place. */
+void cvk_mat_set_identity(cvk_mat_t *mat, double scale);
+
+/** Dot product of two same-shaped single-channel matrices. */
+double cvk_mat_dot(const cvk_mat_t *a, const cvk_mat_t *b);
+
+/** Matrix inverse; method is a DecompTypes value. NULL on singular input. */
+cvk_mat_t *cvk_mat_inv(const cvk_mat_t *mat, int method);
+
+/** Determinant of a square single-channel matrix; NaN on failure. */
+double cvk_mat_determinant(const cvk_mat_t *mat);
+
+/** Sum of diagonal elements. */
+cvk_scalar_t cvk_mat_trace(const cvk_mat_t *mat);
+
+/* =========================================================================
+ * core: array operations
+ * ========================================================================= */
+
+/**
+ * Splits channels into up to `max_count` matrices; writes their handles
+ * into out[] and returns the channel count. Handles are caller-owned.
+ */
+int cvk_split(const cvk_mat_t *src, cvk_mat_t **out, int max_count);
+
+/** Merges `count` single-channel matrices into one multi-channel result. */
+cvk_mat_t *cvk_merge(const cvk_mat_t **mv, int count);
+
+cvk_mat_t *cvk_hconcat(const cvk_mat_t *a, const cvk_mat_t *b);
+cvk_mat_t *cvk_vconcat(const cvk_mat_t *a, const cvk_mat_t *b);
+
+/** Norm of a matrix (NormTypes value). */
+double cvk_norm(const cvk_mat_t *src, int norm_type);
+
+/** Absolute-difference norm between two matrices. */
+double cvk_norm_diff(const cvk_mat_t *a, const cvk_mat_t *b, int norm_type);
+
+/** Normalizes to alpha..beta with a NormTypes norm; dtype<0 keeps depth. */
+cvk_mat_t *cvk_normalize(const cvk_mat_t *src, double alpha, double beta,
+                         int norm_type, int dtype);
+
+/** Lookup-table remap for 8-bit sources. */
+cvk_mat_t *cvk_lut(const cvk_mat_t *src, const cvk_mat_t *lut);
+
+/** Rotates by 90/180/270 degrees (RotateFlags). */
+cvk_mat_t *cvk_rotate(const cvk_mat_t *src, int code);
+
+/** Adds a border of `border_type` with the constant `value`. */
+cvk_mat_t *cvk_copy_make_border(const cvk_mat_t *src, int top, int bottom,
+                                int left, int right, int border_type,
+                                cvk_scalar_t value);
+
+/** dst = alpha*a + beta*b + gamma. */
+cvk_mat_t *cvk_add_weighted(const cvk_mat_t *a, double alpha,
+                            const cvk_mat_t *b, double beta, double gamma);
+
+/** convertScaleAbs then absolute values into CV_8U. */
+cvk_mat_t *cvk_convert_scale_abs(const cvk_mat_t *src, double alpha, double beta);
+
+/** Element-wise comparison (CompareTypes) producing an 8-bit 0/255 mask. */
+cvk_mat_t *cvk_compare(const cvk_mat_t *a, const cvk_mat_t *b, int cmp_op);
+
+/** Solves a*x = b; returns x or NULL when no solution (DecompTypes flags). */
+cvk_mat_t *cvk_solve(const cvk_mat_t *a, const cvk_mat_t *b, int flags);
+
+/** Repeats the matrix nx times horizontally and ny times vertically. */
+cvk_mat_t *cvk_repeat(const cvk_mat_t *src, int nx, int ny);
+
+/** Per-element transform through a matrix (channels map to m rows). */
+cvk_mat_t *cvk_transform(const cvk_mat_t *src, const cvk_mat_t *m);
+
+/** Point transform by a 3x3 (2D points) or 4x4 (3D points) matrix. */
+cvk_mat_t *cvk_perspective_transform(const cvk_mat_t *src, const cvk_mat_t *m);
+
+cvk_mat_t *cvk_pow(const cvk_mat_t *src, double power);
+cvk_mat_t *cvk_sqrt(const cvk_mat_t *src);
+cvk_mat_t *cvk_exp(const cvk_mat_t *src);
+cvk_mat_t *cvk_log(const cvk_mat_t *src);
+
+/** Magnitude/phase helpers over complex pairs expressed as two matrices. */
+cvk_mat_t *cvk_magnitude(const cvk_mat_t *x, const cvk_mat_t *y);
+cvk_mat_t *cvk_phase(const cvk_mat_t *x, const cvk_mat_t *y, int angle_in_degrees);
+void cvk_cart_to_polar(const cvk_mat_t *x, const cvk_mat_t *y,
+                       int angle_in_degrees, cvk_mat_t **magnitude,
+                       cvk_mat_t **angle);
+void cvk_polar_to_cart(const cvk_mat_t *magnitude, const cvk_mat_t *angle,
+                       int angle_in_degrees, cvk_mat_t **x, cvk_mat_t **y);
+
+/** Replaces NaNs with `value` in place. */
+void cvk_patch_nans(cvk_mat_t *mat, double value);
+
+/** Non-zero coordinates as an Nx1 CV_32SC2 matrix. */
+cvk_mat_t *cvk_find_non_zero(const cvk_mat_t *src);
+
+int cvk_has_non_zero(const cvk_mat_t *src);
+
+/** Sorts every row/column (SortFlags). */
+cvk_mat_t *cvk_sort(const cvk_mat_t *src, int flags);
+cvk_mat_t *cvk_sort_idx(const cvk_mat_t *src, int flags);
+
+/** Reduces rows (dim==0) / cols (dim==1) with a ReduceTypes op; dtype<0 keeps depth. */
+cvk_mat_t *cvk_reduce(const cvk_mat_t *src, int dim, int rtype, int dtype);
+
+/** Arg-max/min along dim; result is CV_32S indices. */
+cvk_mat_t *cvk_reduce_arg_max(const cvk_mat_t *src, int dim);
+cvk_mat_t *cvk_reduce_arg_min(const cvk_mat_t *src, int dim);
+
+/** Copies channel [coi] of src into its own matrix / back from one. */
+cvk_mat_t *cvk_extract_channel(const cvk_mat_t *src, int coi);
+void cvk_insert_channel(const cvk_mat_t *src, cvk_mat_t *dst, int coi);
+
+/** Uniformly distributed random fill (Scalar bounds). */
+void cvk_randu(cvk_mat_t *dst, cvk_scalar_t low, cvk_scalar_t high);
+
+/** Normally distributed random fill. */
+void cvk_randn(cvk_mat_t *dst, cvk_scalar_t mean, cvk_scalar_t stddev);
+
+/** Seeds the global RNG (theRNG). */
+void cvk_set_rng_seed(unsigned long long seed);
+
+/** PSNR in decibels between two images. */
+double cvk_psnr(const cvk_mat_t *a, const cvk_mat_t *b, double r);
+
+/** Discrete Fourier/Cosine transforms (DftFlags). */
+cvk_mat_t *cvk_dft(const cvk_mat_t *src, int flags);
+cvk_mat_t *cvk_idft(const cvk_mat_t *src, int flags);
+cvk_mat_t *cvk_dct(const cvk_mat_t *src, int flags);
+cvk_mat_t *cvk_idct(const cvk_mat_t *src, int flags);
+int cvk_get_optimal_dft_size(int rowsize);
+
+/** Element-wise complex spectrum multiply/divide (CV_32FC2/CV_64FC2). */
+cvk_mat_t *cvk_mul_spectrums(const cvk_mat_t *a, const cvk_mat_t *b,
+                             int conj_flag, int dft_rows);
+cvk_mat_t *cvk_div_spectrums(const cvk_mat_t *a, const cvk_mat_t *b,
+                             int conj_flag);
+
+/** Generalized matrix product dst = alpha*a*b + gamma*c (c may be NULL). */
+cvk_mat_t *cvk_gemm(const cvk_mat_t *a, const cvk_mat_t *b, double alpha,
+                    const cvk_mat_t *c, double gamma);
+
+/** Symmetric eigen decomposition; writes eigenvalues/eigenvectors handles. */
+void cvk_eigen(const cvk_mat_t *src, cvk_mat_t **eigenvalues,
+               cvk_mat_t **eigenvectors);
+
+/** Number of threads OpenCV will use / caps it (0 restores default). */
+int cvk_num_threads(void);
+void cvk_set_num_threads(int count);
+
+/** Verbose build information string; never NULL. */
+const char *cvk_build_information(void);
+
+/* =========================================================================
+ * imgproc: filters
+ * ========================================================================= */
+
+/** Simple box blur with a centered kernel. */
+cvk_mat_t *cvk_blur(const cvk_mat_t *src, int kernel_width, int kernel_height);
+
+/** Normalized (or not) box filter; ddepth may be -1. */
+cvk_mat_t *cvk_box_filter(const cvk_mat_t *src, int ddepth, int kernel_width,
+                          int kernel_height, int normalize);
+
+/** Squared box filter; ddepth should be CV_32F/CV_64F/-1. */
+cvk_mat_t *cvk_sqr_box_filter(const cvk_mat_t *src, int ddepth,
+                              int kernel_width, int kernel_height);
+
+/** Edge-preserving smoothing. */
+cvk_mat_t *cvk_bilateral_filter(const cvk_mat_t *src, int d,
+                                double sigma_color, double sigma_space);
+
+/** Exact sliding-window median (stackBlur). */
+cvk_mat_t *cvk_stack_blur(const cvk_mat_t *src, int kernel_size);
+
+/** Erodes/dilates/morphs with `kernel`; iterations >= 1. */
+cvk_mat_t *cvk_erode(const cvk_mat_t *src, const cvk_mat_t *kernel, int iterations);
+cvk_mat_t *cvk_dilate(const cvk_mat_t *src, const cvk_mat_t *kernel, int iterations);
+cvk_mat_t *cvk_morphology_ex(const cvk_mat_t *src, int op,
+                             const cvk_mat_t *kernel, int iterations);
+
+/** Kernel factory (MorphShapes). */
+cvk_mat_t *cvk_get_structuring_element(int shape, int width, int height);
+
+/** Gaussian coefficient row kernel. */
+cvk_mat_t *cvk_get_gaussian_kernel(int ksize, double sigma);
+
+/** Convolves with `kernel` keeping depth (ddepth=-1) plus offset delta. */
+cvk_mat_t *cvk_filter_2d(const cvk_mat_t *src, const cvk_mat_t *kernel,
+                         int ddepth, double delta);
+
+cvk_mat_t *cvk_pyr_down(const cvk_mat_t *src);
+cvk_mat_t *cvk_pyr_up(const cvk_mat_t *src);
+
+/* =========================================================================
+ * imgproc: geometry / warps
+ * ========================================================================= */
+
+/** Warps with a 2x3 affine matrix into width x height (InterpolationFlags). */
+cvk_mat_t *cvk_warp_affine(const cvk_mat_t *src, const cvk_mat_t *m,
+                           int width, int height, int flags);
+
+/** Warps with a 3x3 perspective matrix. */
+cvk_mat_t *cvk_warp_perspective(const cvk_mat_t *src, const cvk_mat_t *m,
+                                int width, int height, int flags);
+
+/** Applies generic coordinate maps produced by warp helpers. */
+cvk_mat_t *cvk_remap(const cvk_mat_t *src, const cvk_mat_t *map1,
+                     const cvk_mat_t *map2, int interpolation);
+
+/** Polar/log-polar remap around center with maxRadius (WarpPolarMode flags). */
+cvk_mat_t *cvk_warp_polar(const cvk_mat_t *src, int radius,
+                          double center_x, double center_y,
+                          double max_radius, int flags);
+
+/** Affine transform mapping three source points onto three destinations. */
+cvk_mat_t *cvk_get_affine_transform(double sx0, double sy0, double sx1,
+                                    double sy1, double sx2, double sy2,
+                                    double dx0, double dy0, double dx1,
+                                    double dy1, double dx2, double dy2);
+
+/** Inverts a 2x3 affine transform. */
+cvk_mat_t *cvk_invert_affine_transform(const cvk_mat_t *m);
+
+/** Perspective transform mapping four source points onto four destinations. */
+cvk_mat_t *cvk_get_perspective_transform(double sx0, double sy0, double sx1,
+                                         double sy1, double sx2, double sy2,
+                                         double sx3, double sy3, double dx0,
+                                         double dy0, double dx1, double dy1,
+                                         double dx2, double dy2, double dx3,
+                                         double dy3);
+
+/** Rotation matrix around (cx,cy) by `angle` degrees with uniform scale. */
+cvk_mat_t *cvk_get_rotation_matrix_2d(double cx, double cy, double angle,
+                                      double scale);
+
+/** Extracts a sub-pixel patch centered at (cx,cy). */
+cvk_mat_t *cvk_get_rect_sub_pix(const cvk_mat_t *src, int width, int height,
+                                double cx, double cy);
+
+/** Lens undistortion using camera intrinsics and distortion coefficients. */
+cvk_mat_t *cvk_undistort(const cvk_mat_t *src, const cvk_mat_t *camera_matrix,
+                         const cvk_mat_t *dist_coeffs);
+
+/* =========================================================================
+ * imgproc: color / histogram
+ * ========================================================================= */
+
+/** Converts Bayer patterns to color (ColorConversionCodes demosaic codes). */
+cvk_mat_t *cvk_demosaicing(const cvk_mat_t *src, int code);
+
+/** Pseudo-coloring with a built-in palette (ColormapTypes). */
+cvk_mat_t *cvk_apply_colormap(const cvk_mat_t *src, int colormap);
+
+/** Pseudo-coloring with a user-supplied lookup table (CV_8UC1 or CV_8UC3). */
+cvk_mat_t *cvk_apply_colormap_user(const cvk_mat_t *src, const cvk_mat_t *user_color);
+
+/**
+ * One-dimensional histogram of [channel] over [hist_size] bins spanning
+ * [min_value, max_value]; returns a hist_size x 1 CV_32F matrix.
+ */
+cvk_mat_t *cvk_calc_hist(const cvk_mat_t *src, int channel, int hist_size,
+                         float min_value, float max_value);
+
+/** Back-projects a histogram computed by cvk_calc_hist onto the image. */
+cvk_mat_t *cvk_calc_back_project(const cvk_mat_t *src, int channel,
+                                 const cvk_mat_t *hist, float min_value,
+                                 float max_value);
+
+/** Histogram similarity (HistCompMethods). */
+double cvk_compare_hist(const cvk_mat_t *h1, const cvk_mat_t *h2, int method);
+
+/** Histogram equalization of an 8-bit grayscale image. */
+cvk_mat_t *cvk_equalize_hist(const cvk_mat_t *src);
+
+/* =========================================================================
+ * imgproc: segmentation / contours / features
+ * ========================================================================= */
+
+/** Fills the connected component at (seed_x, seed_y); returns filled area. */
+int cvk_flood_fill(cvk_mat_t *image, int seed_x, int seed_y,
+                   cvk_scalar_t new_value, cvk_scalar_t lo_diff,
+                   cvk_scalar_t up_diff, int flags);
+
+/** Segments background/foreground via graph cuts on marker labels (in place). */
+void cvk_watershed(cvk_mat_t *image, cvk_mat_t *markers);
+
+/**
+ * Contours travel as one flat little-endian byte buffer:
+ *
+ *   uint32 count
+ *   per contour: uint32 point-count followed by int32 x,y pairs
+ *
+ * Buffers are allocated with malloc and released by cvk_free_buffer.
+ */
+
+/** Finds contours of a binary image (RetrievalModes, ContourApproximationModes). */
+unsigned char *cvk_find_contours(const cvk_mat_t *src, int mode, int method,
+                                 size_t *out_len);
+
+/** Draws contours (-1 draws all); flat is a cvk_find_contours buffer. */
+void cvk_draw_contours(cvk_mat_t *image, const unsigned char *flat, size_t len,
+                       int contour_index, cvk_scalar_t color, int thickness);
+
+/** Area enclosed by exactly one contour. */
+double cvk_contour_area(const unsigned char *flat, size_t len);
+
+/** Perimeter of exactly one contour. */
+double cvk_arc_length(const unsigned char *flat, size_t len, int closed);
+
+/** Axis-aligned bounding box of exactly one contour; writes x,y,w,h. */
+void cvk_bounding_rect(const unsigned char *flat, size_t len, int out[4]);
+
+/** Approximates a contour with fewer points (Douglas-Peucker). */
+unsigned char *cvk_approx_poly_dp(const unsigned char *flat, size_t len,
+                                  double epsilon, int closed, size_t *out_len);
+
+/** Bounding rotated rectangle: cx,cy,width,height,angle. */
+void cvk_min_area_rect(const unsigned char *flat, size_t len, double out[5]);
+
+/** Enclosing circle: cx,cy,radius. */
+void cvk_min_enclosing_circle(const unsigned char *flat, size_t len, double out[3]);
+
+/** Image moments of a rasterized shape or contour matrix. */
+void cvk_moments(const cvk_mat_t *arr, int binary_image, double out[10]);
+
+/** Shape-context-free Hu moment matching (ContourApproximationModes? no: HistCompMethods-like 1..3). */
+double cvk_match_shapes(const cvk_mat_t *a, const cvk_mat_t *b, int method);
+
+/** Line segment detection via probabilistic Hough; Nx1 CV_32SC4 lines. */
+cvk_mat_t *cvk_hough_lines_p(const cvk_mat_t *src, double rho, double theta,
+                             int threshold, double min_line_length,
+                             double max_line_gap);
+
+/** Standard Hough lines; Nx1 CV_32FC2 (rho, theta). */
+cvk_mat_t *cvk_hough_lines(const cvk_mat_t *src, double rho, double theta,
+                           int threshold, double srn, double stn);
+
+/** Circle Hough; Nx1 CV_32FC3 (x, y, radius). */
+cvk_mat_t *cvk_hough_circles(const cvk_mat_t *src, int method, double dp,
+                             double min_dist, double param1, double param2,
+                             int min_radius, int max_radius);
+
+/** Harris corner response map. */
+cvk_mat_t *cvk_corner_harris(const cvk_mat_t *src, int block_size, int ksize,
+                             double k);
+
+/** Minimum eigenvalue corner map (Shi-Tomasi). */
+cvk_mat_t *cvk_corner_min_eigen_val(const cvk_mat_t *src, int block_size,
+                                    int ksize);
+
+/** Strong corners; Nx1 CV_32FC2 points. */
+cvk_mat_t *cvk_good_features_to_track(const cvk_mat_t *src, int max_corners,
+                                      double quality_level, double min_distance,
+                                      int block_size, int use_harris_detector,
+                                      double k);
+
+/** Slides `templ` over the image (TemplateMatchModes). */
+cvk_mat_t *cvk_match_template(const cvk_mat_t *image, const cvk_mat_t *templ,
+                              int method);
+
+/** Distance transform of an edge map (DistanceTypes, mask size 3/5/FILLED). */
+cvk_mat_t *cvk_distance_transform(const cvk_mat_t *src, int distance_type,
+                                  int mask_size);
+
+/** Running 32-bit integral image (sum only). */
+cvk_mat_t *cvk_integral(const cvk_mat_t *src, int sdepth);
+
+/** Labels connected components; returns label count. */
+int cvk_connected_components(const cvk_mat_t *src, cvk_mat_t **labels,
+                             int connectivity, int ltype);
+
+/** Like cvk_connected_components plus stats (Nx5 CV_32S) and centroids (Nx2 CV_64F). */
+int cvk_connected_components_with_stats(const cvk_mat_t *src, cvk_mat_t **labels,
+                                        cvk_mat_t **stats, cvk_mat_t **centroids,
+                                        int connectivity, int ltype);
+
+/** Mean-shift segmentation. */
+cvk_mat_t *cvk_pyr_mean_shift_filtering(const cvk_mat_t *src, double sp,
+                                        double sr, int max_level);
+
+/** Thresholds with a mask; returns the computed threshold (Otsu/Triangle). */
+double cvk_threshold_with_mask(const cvk_mat_t *src, const cvk_mat_t *mask,
+                               cvk_mat_t *dst, double thresh, double maxval,
+                               int type);
+
+/** Window function (createHanningWindow) of given size and depth. */
+cvk_mat_t *cvk_create_hanning_window(int width, int height, int type);
+
+/** Frame accumulators updating `this` in place. */
+void cvk_accumulate(const cvk_mat_t *src, cvk_mat_t *dst);
+void cvk_accumulate_square(const cvk_mat_t *src, cvk_mat_t *dst);
+void cvk_accumulate_product(const cvk_mat_t *a, const cvk_mat_t *b, cvk_mat_t *dst);
+void cvk_accumulate_weighted(const cvk_mat_t *src, cvk_mat_t *dst, double alpha);
+
+/* =========================================================================
+ * imgproc: drawing
+ * ========================================================================= */
+
+void cvk_arrowed_line(cvk_mat_t *mat, int x1, int y1, int x2, int y2,
+                      cvk_scalar_t color, int thickness);
+
+/** Marker glyph (MarkerTypes) centered at (x,y). */
+void cvk_draw_marker(cvk_mat_t *mat, int x, int y, int marker_type, int size,
+                     cvk_scalar_t color, int thickness);
+
+/** Elliptical arc (angles in degrees, thickness<0 fills). */
+void cvk_ellipse(cvk_mat_t *mat, int cx, int cy, int axes_x, int axes_y,
+                 double angle, double start_angle, double end_angle,
+                 cvk_scalar_t color, int thickness);
+
+/**
+ * Fills/strokes polygons. Points come as a cvk_find_contours flat buffer;
+ * thickness < 0 fills.
+ */
+void cvk_fill_poly(cvk_mat_t *mat, const unsigned char *flat, size_t len,
+                   cvk_scalar_t color, int thickness);
+
+/** Strokes polylines from a contours flat buffer. */
+void cvk_polylines(cvk_mat_t *mat, const unsigned char *flat, size_t len,
+                   int closed, cvk_scalar_t color, int thickness);
+
+/* =========================================================================
+ * imgproc: CLAHE
+ * ========================================================================= */
+
+/** Creates a CLAHE algorithm; release with cvk_clahe_release. */
+cvk_clahe_t *cvk_clahe_create(double clip_limit, int tile_width, int tile_height);
+
+/** Applies contrast limited adaptive histogram equalization. */
+cvk_mat_t *cvk_clahe_apply(cvk_clahe_t *clahe, const cvk_mat_t *src);
+
+/** Updates the clip limit. */
+void cvk_clahe_set_clip_limit(cvk_clahe_t *clahe, double clip_limit);
+
+/** Releases a cvk_clahe_create handle (NULL tolerated). */
+void cvk_clahe_release(cvk_clahe_t *clahe);
+
+/* =========================================================================
+ * imgcodecs additions
+ * ========================================================================= */
+
+/** Number of frames inside an image file (gif/tiff pages), else 1. */
+int cvk_imcount(const char *filename);
+
+/** Whether the image file at this path can be decoded / re-encoded. */
+int cvk_have_image_reader(const char *filename);
+int cvk_have_image_writer(const char *filename);
+
+/** imwrite with codec parameters (IMWRITE_JPEG_QUALITY, ...). */
+int cvk_imwrite_params(const char *filename, const cvk_mat_t *mat,
+                       const int *params, size_t params_len);
+
+/** cvk_imencode with codec parameters. */
+unsigned char *cvk_imencode_params(const char *ext, const cvk_mat_t *mat,
+                                   const int *params, size_t params_len,
+                                   size_t *out_len);
 #ifdef __cplusplus
 }
 #endif

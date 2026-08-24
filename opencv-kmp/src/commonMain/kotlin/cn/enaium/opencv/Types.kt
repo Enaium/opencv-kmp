@@ -79,3 +79,57 @@ data class MinMaxLoc(
 
 /** Integer pixel coordinate (`cv::Point`). */
 data class Point(val x: Int, val y: Int)
+
+/** Bounding rotated rectangle from [minAreaRect]; angle in degrees. */
+data class RotatedRect(
+    val centerX: Double,
+    val centerY: Double,
+    val width: Double,
+    val height: Double,
+    val angle: Double,
+)
+
+/** Enclosing circle from [minEnclosingCircle]. */
+data class Circle(val centerX: Double, val centerY: Double, val radius: Double)
+
+/**
+ * Raw spatial moments of a shape ([Mat.moments]); central (`mu`) and
+ * normalized (`nu`) moments are derivable from these ten values.
+ */
+data class Moments(
+    val m00: Double,
+    val m10: Double,
+    val m01: Double,
+    val m20: Double,
+    val m11: Double,
+    val m02: Double,
+    val m30: Double,
+    val m21: Double,
+    val m12: Double,
+    val m03: Double,
+) {
+    /** Central moment mu(i,j); requires m00 != 0. */
+    fun mu(i: Int, j: Int): Double {
+        val xBar = m10 / m00
+        val yBar = m01 / m00
+        return when (i * 10 + j) {
+            20 -> m20 - xBar * xBar * m00
+            11 -> m11 - xBar * yBar * m00
+            2 -> m02 - yBar * yBar * m00
+            30 -> m30 - 3 * xBar * m20 + 2 * xBar * xBar * xBar * m00
+            21 -> m21 - 2 * xBar * m11 - yBar * m20 + 2 * xBar * xBar * yBar * m00
+            12 -> m12 - 2 * yBar * m11 - xBar * m02 + 2 * xBar * yBar * yBar * m00
+            else -> m03 - 3 * yBar * m02 + 2 * yBar * yBar * yBar * m00
+        }
+    }
+}
+
+/** Result of [Mat.connectedComponentsWithStats]; every Mat must be closed. */
+data class Components(
+    val count: Int,
+    val labels: Mat,
+    val stats: Mat,
+
+    /** Nx2 CV_64F centroids. */
+    val centroids: Mat,
+)

@@ -32,11 +32,18 @@
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/geometry.hpp>
+#include <opencv2/features.hpp>
 
 #include <cstdlib>
 #include <cstring>
 #include <new>
 #include <string>
+#include <vector>
+/** Opaque CLAHE handle backing cvk_clahe_t; defined at file scope so it
+ *  completes the type the C header forward-declared. */
+struct cvk_clahe { cv::Ptr<cv::CLAHE> ptr; };
+
 
 namespace {
 
@@ -103,6 +110,88 @@ void write_at(cv::Mat &m, int row, int col, int channel, double value) {
     p[channel] = cv::saturate_cast<T>(value);
 }
 
+
+
+/* ---- Contour flat-buffer helpers -------------------------------------
+ * Wire format: [uint32 le count][per contour: uint32 le npoints][int32 le x,y ...]
+ */
+
+void put_u32le(unsigned char *p, unsigned int value) {
+    p[0] = static_cast<unsigned char>(value & 0xFFu);
+    p[1] = static_cast<unsigned char>((value >> 8) & 0xFFu);
+    p[2] = static_cast<unsigned char>((value >> 16) & 0xFFu);
+    p[3] = static_cast<unsigned char>((value >> 24) & 0xFFu);
+}
+
+unsigned int get_u32le(const unsigned char *p) {
+    return static_cast<unsigned int>(p[0]) |
+           (static_cast<unsigned int>(p[1]) << 8) |
+           (static_cast<unsigned int>(p[2]) << 16) |
+           (static_cast<unsigned int>(p[3]) << 24);
+}
+
+unsigned char *encode_contours(const std::vector<std::vector<cv::Point>> &contours,
+                               size_t *out_len) {
+    size_t total = 4;
+    for (const auto &pts : contours) total += 4 + pts.size() * 8;
+    auto *buf = static_cast<unsigned char *>(std::malloc(total));
+    if (buf == nullptr) throw std::bad_alloc();
+    put_u32le(buf, static_cast<unsigned int>(contours.size()));
+    size_t off = 4;
+    for (const auto &pts : contours) {
+        put_u32le(buf + off, static_cast<unsigned int>(pts.size()));
+        off += 4;
+        for (const cv::Point &pt : pts) {
+            put_u32le(buf + off, static_cast<unsigned int>(pt.x));
+            put_u32le(buf + off + 4, static_cast<unsigned int>(pt.y));
+            off += 8;
+        }
+    }
+    if (out_len != nullptr) *out_len = total;
+    return buf;
+}
+
+std::vector<std::vector<cv::Point>> decode_contours(const unsigned char *flat, size_t len) {
+    if (flat == nullptr || len < 4) {
+        throw cv::Exception(cv::Error::StsParseError, "malformed contour buffer", __func__, __FILE__, __LINE__);
+    }
+    const unsigned int count = get_u32le(flat);
+    std::vector<std::vector<cv::Point>> contours;
+    contours.reserve(count);
+    size_t off = 4;
+    for (unsigned int i = 0; i < count; ++i) {
+        if (off + 4 > len) {
+            throw cv::Exception(cv::Error::StsParseError, "truncated contour buffer", __func__, __FILE__, __LINE__);
+        }
+        const unsigned int n = get_u32le(flat + off);
+        off += 4;
+        if (off + static_cast<size_t>(n) * 8 > len) {
+            throw cv::Exception(cv::Error::StsParseError, "truncated contour points", __func__, __FILE__, __LINE__);
+        }
+        std::vector<cv::Point> pts;
+        pts.reserve(n);
+        for (unsigned int j = 0; j < n; ++j) {
+            const int x = static_cast<int>(get_u32le(flat + off));
+            const int y = static_cast<int>(get_u32le(flat + off + 4));
+            off += 8;
+            pts.emplace_back(x, y);
+        }
+        contours.push_back(std::move(pts));
+    }
+    return contours;
+}
+
+/** Decodes a buffer holding exactly one contour. */
+std::vector<cv::Point> single_contour(const unsigned char *flat, size_t len) {
+    std::vector<std::vector<cv::Point>> contours = decode_contours(flat, len);
+    if (contours.size() != 1) {
+        throw cv::Exception(cv::Error::StsBadArg, "expected exactly one contour", __func__, __FILE__, __LINE__);
+    }
+    return std::move(contours[0]);
+}
+
+/** Default morphology kernel when the caller passes NULL. */
+cv::Mat default_kernel() { return cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3)); }
 } // namespace
 
 extern "C" {
@@ -631,5 +720,1515 @@ cvk_mat_t *cvk_imdecode(const unsigned char *data, size_t len, int flags) {
 }
 
 void cvk_free_buffer(unsigned char *buffer) { std::free(buffer); }
+
+/* =========================================================================
+ * Mat members (core)
+ * ========================================================================= */
+
+cvk_mat_t *cvk_mat_reshape(const cvk_mat_t *mat, int channels, int rows) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(m->reshape(channels, rows)));
+    });
+}
+
+cvk_mat_t *cvk_mat_row_range(const cvk_mat_t *mat, int start, int end) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        // rowRange shares pixels and increments the reference count.
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(m->rowRange(start, end)));
+    });
+}
+
+cvk_mat_t *cvk_mat_col_range(const cvk_mat_t *mat, int start, int end) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(m->colRange(start, end)));
+    });
+}
+
+cvk_mat_t *cvk_mat_diag(const cvk_mat_t *mat, int d) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(m->diag(d)));
+    });
+}
+
+void cvk_mat_set_identity(cvk_mat_t *mat, double scale) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::setIdentity(*m, cv::Scalar(scale));
+        return nullptr;
+    });
+}
+
+double cvk_mat_dot(const cvk_mat_t *a, const cvk_mat_t *b) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return -1.0;
+    return guarded([&] { return ma->dot(*mb); });
+}
+
+cvk_mat_t *cvk_mat_inv(const cvk_mat_t *mat, int method) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        const double result = cv::invert(*m, *dst, method);
+        if (result == 0.0) {
+            delete dst;
+            record_error("matrix is singular and cannot be inverted");
+            return static_cast<cvk_mat_t *>(nullptr);
+        }
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+double cvk_mat_determinant(const cvk_mat_t *mat) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return std::nan("");
+    return guarded([&] { return cv::determinant(*m); });
+}
+
+cvk_scalar_t cvk_mat_trace(const cvk_mat_t *mat) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return cvk_scalar_t{};
+    return guarded([&] { return scalar_of(cv::trace(*m)); });
+}
+
+/* =========================================================================
+ * core: array operations
+ * ========================================================================= */
+
+int cvk_split(const cvk_mat_t *src, cvk_mat_t **out, int max_count) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr || out == nullptr || max_count <= 0) return -1;
+    return guarded([&]() -> int {
+        for (int i = 0; i < max_count; ++i) out[i] = nullptr;
+        std::vector<cv::Mat> channels;
+        cv::split(*m, channels);
+        const int filled = static_cast<int>(channels.size()) < max_count
+                                   ? static_cast<int>(channels.size())
+                                   : max_count;
+        for (int i = 0; i < filled; ++i) {
+            out[i] = reinterpret_cast<cvk_mat_t *>(new cv::Mat(channels[static_cast<size_t>(i)]));
+        }
+        return static_cast<int>(channels.size());
+    });
+}
+
+cvk_mat_t *cvk_merge(const cvk_mat_t **mv, int count) {
+    if (mv == nullptr || count <= 0) {
+        record_error("null merge inputs");
+        return nullptr;
+    }
+    return guarded([&]() -> cvk_mat_t * {
+        std::vector<cv::Mat> channels;
+        channels.reserve(static_cast<size_t>(count));
+        for (int i = 0; i < count; ++i) {
+            const cv::Mat *m = require_const(mv[i]);
+            if (m == nullptr) throw cv::Exception(cv::Error::StsBadArg, "null Mat in merge list", __func__, __FILE__, __LINE__);
+            channels.push_back(*m);
+        }
+        auto *dst = new cv::Mat();
+        cv::merge(channels, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_hconcat(const cvk_mat_t *a, const cvk_mat_t *b) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::hconcat(*ma, *mb, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_vconcat(const cvk_mat_t *a, const cvk_mat_t *b) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::vconcat(*ma, *mb, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+double cvk_norm(const cvk_mat_t *src, int norm_type) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return -1.0;
+    return guarded([&] { return cv::norm(*m, norm_type); });
+}
+
+double cvk_norm_diff(const cvk_mat_t *a, const cvk_mat_t *b, int norm_type) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return -1.0;
+    return guarded([&] { return cv::norm(*ma, *mb, norm_type); });
+}
+
+cvk_mat_t *cvk_normalize(const cvk_mat_t *src, double alpha, double beta,
+                         int norm_type, int dtype) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::normalize(*m, *dst, alpha, beta, norm_type, dtype);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_lut(const cvk_mat_t *src, const cvk_mat_t *lut) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *lm = require_const(lut);
+    if (m == nullptr || lm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::LUT(*m, *lm, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_rotate(const cvk_mat_t *src, int code) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::rotate(*m, *dst, code);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_copy_make_border(const cvk_mat_t *src, int top, int bottom,
+                                int left, int right, int border_type,
+                                cvk_scalar_t value) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::copyMakeBorder(*m, *dst, top, bottom, left, right, border_type, cv_scalar(value));
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_add_weighted(const cvk_mat_t *a, double alpha,
+                            const cvk_mat_t *b, double beta, double gamma) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::addWeighted(*ma, alpha, *mb, beta, gamma, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_convert_scale_abs(const cvk_mat_t *src, double alpha, double beta) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::convertScaleAbs(*m, *dst, alpha, beta);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_compare(const cvk_mat_t *a, const cvk_mat_t *b, int cmp_op) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::compare(*ma, *mb, *dst, cmp_op);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_solve(const cvk_mat_t *a, const cvk_mat_t *b, int flags) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        if (!cv::solve(*ma, *mb, *dst, flags)) {
+            delete dst;
+            record_error("solve found no solution");
+            return static_cast<cvk_mat_t *>(nullptr);
+        }
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_repeat(const cvk_mat_t *src, int nx, int ny) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::repeat(*m, ny, nx, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_transform(const cvk_mat_t *src, const cvk_mat_t *m) {
+    const cv::Mat *sm = require_const(src);
+    const cv::Mat *mm = require_const(m);
+    if (sm == nullptr || mm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::transform(*sm, *dst, *mm);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_perspective_transform(const cvk_mat_t *src, const cvk_mat_t *m) {
+    const cv::Mat *sm = require_const(src);
+    const cv::Mat *mm = require_const(m);
+    if (sm == nullptr || mm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::perspectiveTransform(*sm, *dst, *mm);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_pow(const cvk_mat_t *src, double power) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::pow(*m, power, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_sqrt(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::sqrt(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_exp(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::exp(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_log(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::log(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_magnitude(const cvk_mat_t *x, const cvk_mat_t *y) {
+    const cv::Mat *mx = require_const(x);
+    const cv::Mat *my = require_const(y);
+    if (mx == nullptr || my == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::magnitude(*mx, *my, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_phase(const cvk_mat_t *x, const cvk_mat_t *y, int angle_in_degrees) {
+    const cv::Mat *mx = require_const(x);
+    const cv::Mat *my = require_const(y);
+    if (mx == nullptr || my == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::phase(*mx, *my, *dst, angle_in_degrees != 0);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+void cvk_cart_to_polar(const cvk_mat_t *x, const cvk_mat_t *y,
+                       int angle_in_degrees, cvk_mat_t **magnitude,
+                       cvk_mat_t **angle) {
+    if (magnitude != nullptr) *magnitude = nullptr;
+    if (angle != nullptr) *angle = nullptr;
+    const cv::Mat *mx = require_const(x);
+    const cv::Mat *my = require_const(y);
+    if (mx == nullptr || my == nullptr || magnitude == nullptr || angle == nullptr) return;
+    guarded([&]() -> void * {
+        auto *mag = new cv::Mat();
+        auto *ang = new cv::Mat();
+        cv::cartToPolar(*mx, *my, *mag, *ang, angle_in_degrees != 0);
+        *magnitude = reinterpret_cast<cvk_mat_t *>(mag);
+        *angle = reinterpret_cast<cvk_mat_t *>(ang);
+        return nullptr;
+    });
+}
+
+void cvk_polar_to_cart(const cvk_mat_t *magnitude, const cvk_mat_t *angle,
+                       int angle_in_degrees, cvk_mat_t **x, cvk_mat_t **y) {
+    if (x != nullptr) *x = nullptr;
+    if (y != nullptr) *y = nullptr;
+    const cv::Mat *mag = require_const(magnitude);
+    const cv::Mat *ang = require_const(angle);
+    if (mag == nullptr || ang == nullptr || x == nullptr || y == nullptr) return;
+    guarded([&]() -> void * {
+        auto *px = new cv::Mat();
+        auto *py = new cv::Mat();
+        cv::polarToCart(*mag, *ang, *px, *py, angle_in_degrees != 0);
+        *x = reinterpret_cast<cvk_mat_t *>(px);
+        *y = reinterpret_cast<cvk_mat_t *>(py);
+        return nullptr;
+    });
+}
+
+void cvk_patch_nans(cvk_mat_t *mat, double value) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::patchNaNs(*m, value);
+        return nullptr;
+    });
+}
+
+cvk_mat_t *cvk_find_non_zero(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::findNonZero(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+int cvk_has_non_zero(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return -1;
+    return guarded([&] { return cv::countNonZero(*m) > 0 ? 1 : 0; });
+}
+
+cvk_mat_t *cvk_sort(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::sort(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_sort_idx(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::sortIdx(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_reduce(const cvk_mat_t *src, int dim, int rtype, int dtype) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::reduce(*m, *dst, dim, rtype, dtype);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_reduce_arg_max(const cvk_mat_t *src, int dim) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::reduceArgMax(*m, *dst, dim);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_reduce_arg_min(const cvk_mat_t *src, int dim) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::reduceArgMin(*m, *dst, dim);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_extract_channel(const cvk_mat_t *src, int coi) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::extractChannel(*m, *dst, coi);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+void cvk_insert_channel(const cvk_mat_t *src, cvk_mat_t *dst, int coi) {
+    const cv::Mat *sm = require_const(src);
+    cv::Mat *dm = require(dst);
+    if (sm == nullptr || dm == nullptr) return;
+    guarded([&]() -> void * {
+        cv::insertChannel(*sm, *dm, coi);
+        return nullptr;
+    });
+}
+
+void cvk_randu(cvk_mat_t *dst, cvk_scalar_t low, cvk_scalar_t high) {
+    cv::Mat *m = require(dst);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::randu(*m, cv_scalar(low), cv_scalar(high));
+        return nullptr;
+    });
+}
+
+void cvk_randn(cvk_mat_t *dst, cvk_scalar_t mean, cvk_scalar_t stddev) {
+    cv::Mat *m = require(dst);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::randn(*m, cv_scalar(mean), cv_scalar(stddev));
+        return nullptr;
+    });
+}
+
+void cvk_set_rng_seed(unsigned long long seed) {
+    guarded([&]() -> void * {
+        cv::theRNG().state = static_cast<uint64>(seed);
+        return nullptr;
+    });
+}
+
+double cvk_psnr(const cvk_mat_t *a, const cvk_mat_t *b, double r) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return -1.0;
+    return guarded([&] { return cv::PSNR(*ma, *mb, r); });
+}
+
+cvk_mat_t *cvk_dft(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::dft(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_idft(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::idft(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_dct(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::dct(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_idct(const cvk_mat_t *src, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::idct(*m, *dst, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+int cvk_get_optimal_dft_size(int rowsize) {
+    return guarded([&] { return cv::getOptimalDFTSize(rowsize); });
+}
+
+cvk_mat_t *cvk_mul_spectrums(const cvk_mat_t *a, const cvk_mat_t *b,
+                             int conj_flag, int dft_rows) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::mulSpectrums(*ma, *mb, *dst, conj_flag, dft_rows != 0);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_div_spectrums(const cvk_mat_t *a, const cvk_mat_t *b,
+                             int conj_flag) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::divSpectrums(*ma, *mb, *dst, conj_flag);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_gemm(const cvk_mat_t *a, const cvk_mat_t *b, double alpha,
+                    const cvk_mat_t *c, double gamma) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    const cv::Mat *mc = c != nullptr ? require_const(c) : nullptr;
+    if (c != nullptr && mc == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::gemm(*ma, *mb, alpha, mc != nullptr ? *mc : cv::noArray(), gamma, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+void cvk_eigen(const cvk_mat_t *src, cvk_mat_t **eigenvalues,
+               cvk_mat_t **eigenvectors) {
+    if (eigenvalues != nullptr) *eigenvalues = nullptr;
+    if (eigenvectors != nullptr) *eigenvectors = nullptr;
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr || eigenvalues == nullptr || eigenvectors == nullptr) return;
+    guarded([&]() -> void * {
+        auto *values = new cv::Mat();
+        auto *vectors = new cv::Mat();
+        cv::eigen(*m, *values, *vectors);
+        *eigenvalues = reinterpret_cast<cvk_mat_t *>(values);
+        *eigenvectors = reinterpret_cast<cvk_mat_t *>(vectors);
+        return nullptr;
+    });
+}
+
+int cvk_num_threads(void) {
+    return guarded([] { return cv::getNumThreads(); });
+}
+
+void cvk_set_num_threads(int count) {
+    guarded([&]() -> void * {
+        cv::setNumThreads(count);
+        return nullptr;
+    });
+}
+
+const char *cvk_build_information(void) {
+    // getBuildInformation() returns a fresh string each call; cache one copy.
+    static const std::string info = cv::getBuildInformation();
+    return info.c_str();
+}
+
+cvk_mat_t *cvk_remap(const cvk_mat_t *src, const cvk_mat_t *map1,
+                     const cvk_mat_t *map2, int interpolation) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *m1 = require_const(map1);
+    if (m == nullptr || m1 == nullptr) return nullptr;
+    const cv::Mat *m2 = map2 != nullptr ? require_const(map2) : nullptr;
+    if (map2 != nullptr && m2 == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::remap(*m, *dst, *m1, m2 != nullptr ? *m2 : cv::noArray(), interpolation);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+/* =========================================================================
+ * imgproc: filters
+ * ========================================================================= */
+
+cvk_mat_t *cvk_blur(const cvk_mat_t *src, int kernel_width, int kernel_height) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::blur(*m, *dst, cv::Size(kernel_width, kernel_height));
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_box_filter(const cvk_mat_t *src, int ddepth, int kernel_width,
+                          int kernel_height, int normalize) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::boxFilter(*m, *dst, ddepth, cv::Size(kernel_width, kernel_height),
+                      cv::Point(-1, -1), normalize != 0, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_sqr_box_filter(const cvk_mat_t *src, int ddepth,
+                              int kernel_width, int kernel_height) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::sqrBoxFilter(*m, *dst, ddepth, cv::Size(kernel_width, kernel_height),
+                         cv::Point(-1, -1), true, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_bilateral_filter(const cvk_mat_t *src, int d,
+                                double sigma_color, double sigma_space) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::bilateralFilter(*m, *dst, d, sigma_color, sigma_space, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_stack_blur(const cvk_mat_t *src, int kernel_size) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::stackBlur(*m, *dst, cv::Size(kernel_size, kernel_size));
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_erode(const cvk_mat_t *src, const cvk_mat_t *kernel, int iterations) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    const cv::Mat *k = kernel != nullptr ? require_const(kernel) : nullptr;
+    if (kernel != nullptr && k == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::erode(*m, *dst, k != nullptr ? *k : default_kernel(),
+                  cv::Point(-1, -1), iterations);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_dilate(const cvk_mat_t *src, const cvk_mat_t *kernel, int iterations) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    const cv::Mat *k = kernel != nullptr ? require_const(kernel) : nullptr;
+    if (kernel != nullptr && k == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::dilate(*m, *dst, k != nullptr ? *k : default_kernel(),
+                   cv::Point(-1, -1), iterations);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_morphology_ex(const cvk_mat_t *src, int op,
+                             const cvk_mat_t *kernel, int iterations) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    const cv::Mat *k = kernel != nullptr ? require_const(kernel) : nullptr;
+    if (kernel != nullptr && k == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::morphologyEx(*m, *dst, op, k != nullptr ? *k : default_kernel(),
+                         cv::Point(-1, -1), iterations);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_get_structuring_element(int shape, int width, int height) {
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(
+                new cv::Mat(cv::getStructuringElement(shape, cv::Size(width, height))));
+    });
+}
+
+cvk_mat_t *cvk_get_gaussian_kernel(int ksize, double sigma) {
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(
+                new cv::Mat(cv::getGaussianKernel(ksize, sigma)));
+    });
+}
+
+cvk_mat_t *cvk_filter_2d(const cvk_mat_t *src, const cvk_mat_t *kernel,
+                         int ddepth, double delta) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *k = require_const(kernel);
+    if (m == nullptr || k == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::filter2D(*m, *dst, ddepth, *k, cv::Point(-1, -1), delta, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_pyr_down(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::pyrDown(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_pyr_up(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::pyrUp(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+/* =========================================================================
+ * imgproc: geometry / warps
+ * ========================================================================= */
+
+cvk_mat_t *cvk_warp_affine(const cvk_mat_t *src, const cvk_mat_t *m,
+                           int width, int height, int flags) {
+    const cv::Mat *sm = require_const(src);
+    const cv::Mat *mm = require_const(m);
+    if (sm == nullptr || mm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::warpAffine(*sm, *dst, *mm, cv::Size(width, height), flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_warp_perspective(const cvk_mat_t *src, const cvk_mat_t *m,
+                                int width, int height, int flags) {
+    const cv::Mat *sm = require_const(src);
+    const cv::Mat *mm = require_const(m);
+    if (sm == nullptr || mm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::warpPerspective(*sm, *dst, *mm, cv::Size(width, height), flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+
+cvk_mat_t *cvk_warp_polar(const cvk_mat_t *src, int radius,
+                          double center_x, double center_y,
+                          double max_radius, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::warpPolar(*m, *dst, cv::Size(radius, m->rows),
+                      cv::Point2f(static_cast<float>(center_x), static_cast<float>(center_y)),
+                      max_radius, flags);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_get_affine_transform(double sx0, double sy0, double sx1,
+                                    double sy1, double sx2, double sy2,
+                                    double dx0, double dy0, double dx1,
+                                    double dy1, double dx2, double dy2) {
+    return guarded([&]() -> cvk_mat_t * {
+        const cv::Point2f src[] = {{static_cast<float>(sx0), static_cast<float>(sy0)},
+                                   {static_cast<float>(sx1), static_cast<float>(sy1)},
+                                   {static_cast<float>(sx2), static_cast<float>(sy2)}};
+        const cv::Point2f dst[] = {{static_cast<float>(dx0), static_cast<float>(dy0)},
+                                   {static_cast<float>(dx1), static_cast<float>(dy1)},
+                                   {static_cast<float>(dx2), static_cast<float>(dy2)}};
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(cv::getAffineTransform(src, dst)));
+    });
+}
+
+cvk_mat_t *cvk_invert_affine_transform(const cvk_mat_t *m) {
+    const cv::Mat *mm = require_const(m);
+    if (mm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::invertAffineTransform(*mm, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_get_perspective_transform(double sx0, double sy0, double sx1,
+                                         double sy1, double sx2, double sy2,
+                                         double sx3, double sy3, double dx0,
+                                         double dy0, double dx1, double dy1,
+                                         double dx2, double dy2, double dx3,
+                                         double dy3) {
+    return guarded([&]() -> cvk_mat_t * {
+        const cv::Point2f src[] = {{static_cast<float>(sx0), static_cast<float>(sy0)},
+                                   {static_cast<float>(sx1), static_cast<float>(sy1)},
+                                   {static_cast<float>(sx2), static_cast<float>(sy2)},
+                                   {static_cast<float>(sx3), static_cast<float>(sy3)}};
+        const cv::Point2f dst[] = {{static_cast<float>(dx0), static_cast<float>(dy0)},
+                                   {static_cast<float>(dx1), static_cast<float>(dy1)},
+                                   {static_cast<float>(dx2), static_cast<float>(dy2)},
+                                   {static_cast<float>(dx3), static_cast<float>(dy3)}};
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(cv::getPerspectiveTransform(src, dst)));
+    });
+}
+
+cvk_mat_t *cvk_get_rotation_matrix_2d(double cx, double cy, double angle,
+                                      double scale) {
+    return guarded([&]() -> cvk_mat_t * {
+        return reinterpret_cast<cvk_mat_t *>(new cv::Mat(
+                cv::getRotationMatrix2D(cv::Point2f(static_cast<float>(cx), static_cast<float>(cy)),
+                                        angle, scale)));
+    });
+}
+
+cvk_mat_t *cvk_get_rect_sub_pix(const cvk_mat_t *src, int width, int height,
+                                double cx, double cy) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::getRectSubPix(*m, cv::Size(width, height),
+                          cv::Point2f(static_cast<float>(cx), static_cast<float>(cy)), *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_undistort(const cvk_mat_t *src, const cvk_mat_t *camera_matrix,
+                         const cvk_mat_t *dist_coeffs) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *cam = require_const(camera_matrix);
+    if (m == nullptr || cam == nullptr) return nullptr;
+    const cv::Mat *dist = dist_coeffs != nullptr ? require_const(dist_coeffs) : nullptr;
+    if (dist_coeffs != nullptr && dist == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::undistort(*m, *dst, *cam, dist != nullptr ? *dist : cv::noArray());
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+/* =========================================================================
+ * imgproc: color / histogram
+ * ========================================================================= */
+
+cvk_mat_t *cvk_demosaicing(const cvk_mat_t *src, int code) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::demosaicing(*m, *dst, code);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_apply_colormap(const cvk_mat_t *src, int colormap) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::applyColorMap(*m, *dst, colormap);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_apply_colormap_user(const cvk_mat_t *src, const cvk_mat_t *user_color) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *uc = require_const(user_color);
+    if (m == nullptr || uc == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::applyColorMap(*m, *dst, *uc);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_calc_hist(const cvk_mat_t *src, int channel, int hist_size,
+                         float min_value, float max_value) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        std::vector<cv::Mat> images{*m};
+        std::vector<int> channels{channel};
+        std::vector<int> hist_sizes{hist_size};
+        std::vector<float> ranges{min_value, max_value};
+        auto *hist = new cv::Mat();
+        cv::calcHist(images, channels, cv::noArray(), *hist, hist_sizes, ranges);
+        // calcHist returns a dims==1 array; flatten it to hist_size x 1 so
+        // row/col element access works uniformly.
+        if (hist->dims == 1) {
+            *hist = hist->reshape(1, hist_size);
+        }
+        return reinterpret_cast<cvk_mat_t *>(hist);
+    });
+}
+
+cvk_mat_t *cvk_calc_back_project(const cvk_mat_t *src, int channel,
+                                 const cvk_mat_t *hist, float min_value,
+                                 float max_value) {
+    const cv::Mat *m = require_const(src);
+    const cv::Mat *hm = require_const(hist);
+    if (m == nullptr || hm == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        std::vector<cv::Mat> images{*m};
+        std::vector<int> channels{channel};
+        std::vector<float> ranges{min_value, max_value};
+        auto *dst = new cv::Mat();
+        cv::calcBackProject(images, channels, *hm, *dst, ranges, 1.0);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+double cvk_compare_hist(const cvk_mat_t *h1, const cvk_mat_t *h2, int method) {
+    const cv::Mat *mh1 = require_const(h1);
+    const cv::Mat *mh2 = require_const(h2);
+    if (mh1 == nullptr || mh2 == nullptr) return -1.0;
+    return guarded([&] { return cv::compareHist(*mh1, *mh2, method); });
+}
+
+cvk_mat_t *cvk_equalize_hist(const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::equalizeHist(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+/* =========================================================================
+ * imgproc: segmentation / contours / features
+ * ========================================================================= */
+
+int cvk_flood_fill(cvk_mat_t *image, int seed_x, int seed_y,
+                   cvk_scalar_t new_value, cvk_scalar_t lo_diff,
+                   cvk_scalar_t up_diff, int flags) {
+    cv::Mat *m = require(image);
+    if (m == nullptr) return -1;
+    return guarded([&] {
+        return cv::floodFill(*m, cv::Point(seed_x, seed_y), cv_scalar(new_value),
+                             static_cast<cv::Rect *>(nullptr), cv_scalar(lo_diff),
+                             cv_scalar(up_diff), flags);
+    });
+}
+
+void cvk_watershed(cvk_mat_t *image, cvk_mat_t *markers) {
+    cv::Mat *im = require(image);
+    cv::Mat *mk = require(markers);
+    if (im == nullptr || mk == nullptr) return;
+    guarded([&]() -> void * {
+        cv::watershed(*im, *mk);
+        return nullptr;
+    });
+}
+
+unsigned char *cvk_find_contours(const cvk_mat_t *src, int mode, int method,
+                                 size_t *out_len) {
+    if (out_len != nullptr) *out_len = 0;
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> unsigned char * {
+        std::vector<std::vector<cv::Point>> contours;
+        cv::findContours(*m, contours, mode, method);
+        return encode_contours(contours, out_len);
+    });
+}
+
+void cvk_draw_contours(cvk_mat_t *image, const unsigned char *flat, size_t len,
+                       int contour_index, cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(image);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        std::vector<std::vector<cv::Point>> contours = decode_contours(flat, len);
+        cv::drawContours(*m, contours, contour_index, cv_scalar(color), thickness, cv::LINE_8);
+        return nullptr;
+    });
+}
+
+double cvk_contour_area(const unsigned char *flat, size_t len) {
+    return guarded([&] { return cv::contourArea(single_contour(flat, len)); });
+}
+
+double cvk_arc_length(const unsigned char *flat, size_t len, int closed) {
+    return guarded([&] {
+        return cv::arcLength(single_contour(flat, len), closed != 0);
+    });
+}
+
+void cvk_bounding_rect(const unsigned char *flat, size_t len, int out[4]) {
+    if (out == nullptr) return;
+    guarded([&]() -> void * {
+        const cv::Rect r = cv::boundingRect(single_contour(flat, len));
+        out[0] = r.x;
+        out[1] = r.y;
+        out[2] = r.width;
+        out[3] = r.height;
+        return nullptr;
+    });
+}
+
+unsigned char *cvk_approx_poly_dp(const unsigned char *flat, size_t len,
+                                  double epsilon, int closed, size_t *out_len) {
+    if (out_len != nullptr) *out_len = 0;
+    return guarded([&]() -> unsigned char * {
+        std::vector<cv::Point> approx;
+        cv::approxPolyDP(single_contour(flat, len), approx, epsilon, closed != 0);
+        return encode_contours({approx}, out_len);
+    });
+}
+
+void cvk_min_area_rect(const unsigned char *flat, size_t len, double out[5]) {
+    if (out == nullptr) return;
+    guarded([&]() -> void * {
+        const cv::RotatedRect r = cv::minAreaRect(single_contour(flat, len));
+        out[0] = r.center.x;
+        out[1] = r.center.y;
+        out[2] = r.size.width;
+        out[3] = r.size.height;
+        out[4] = r.angle;
+        return nullptr;
+    });
+}
+
+void cvk_min_enclosing_circle(const unsigned char *flat, size_t len, double out[3]) {
+    if (out == nullptr) return;
+    guarded([&]() -> void * {
+        cv::Point2f center;
+        float radius = 0.0f;
+        cv::minEnclosingCircle(single_contour(flat, len), center, radius);
+        out[0] = center.x;
+        out[1] = center.y;
+        out[2] = radius;
+        return nullptr;
+    });
+}
+
+void cvk_moments(const cvk_mat_t *arr, int binary_image, double out[10]) {
+    if (out == nullptr) return;
+    const cv::Mat *m = require_const(arr);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        const cv::Moments mo = cv::moments(*m, binary_image != 0);
+        out[0] = mo.m00;
+        out[1] = mo.m10;
+        out[2] = mo.m01;
+        out[3] = mo.m20;
+        out[4] = mo.m11;
+        out[5] = mo.m02;
+        out[6] = mo.m30;
+        out[7] = mo.m21;
+        out[8] = mo.m12;
+        out[9] = mo.m03;
+        return nullptr;
+    });
+}
+
+double cvk_match_shapes(const cvk_mat_t *a, const cvk_mat_t *b, int method) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return -1.0;
+    return guarded([&] { return cv::matchShapes(*ma, *mb, method, 0.0); });
+}
+
+cvk_mat_t *cvk_hough_lines_p(const cvk_mat_t *src, double rho, double theta,
+                             int threshold, double min_line_length,
+                             double max_line_gap) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *lines = new cv::Mat();
+        cv::HoughLinesP(*m, *lines, rho, theta, threshold, min_line_length, max_line_gap);
+        return reinterpret_cast<cvk_mat_t *>(lines);
+    });
+}
+
+cvk_mat_t *cvk_hough_lines(const cvk_mat_t *src, double rho, double theta,
+                           int threshold, double srn, double stn) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *lines = new cv::Mat();
+        cv::HoughLines(*m, *lines, rho, theta, threshold, srn, stn);
+        return reinterpret_cast<cvk_mat_t *>(lines);
+    });
+}
+
+cvk_mat_t *cvk_hough_circles(const cvk_mat_t *src, int method, double dp,
+                             double min_dist, double param1, double param2,
+                             int min_radius, int max_radius) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *circles = new cv::Mat();
+        cv::HoughCircles(*m, *circles, method, dp, min_dist, param1, param2,
+                         min_radius, max_radius);
+        return reinterpret_cast<cvk_mat_t *>(circles);
+    });
+}
+
+cvk_mat_t *cvk_corner_harris(const cvk_mat_t *src, int block_size, int ksize,
+                             double k) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::cornerHarris(*m, *dst, block_size, ksize, k, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_corner_min_eigen_val(const cvk_mat_t *src, int block_size,
+                                    int ksize) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::cornerMinEigenVal(*m, *dst, block_size, ksize, cv::BORDER_DEFAULT);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_good_features_to_track(const cvk_mat_t *src, int max_corners,
+                                      double quality_level, double min_distance,
+                                      int block_size, int use_harris_detector,
+                                      double k) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *corners = new cv::Mat();
+        cv::goodFeaturesToTrack(*m, *corners, max_corners, quality_level,
+                                min_distance, cv::noArray(), block_size,
+                                use_harris_detector != 0, k);
+        return reinterpret_cast<cvk_mat_t *>(corners);
+    });
+}
+
+cvk_mat_t *cvk_match_template(const cvk_mat_t *image, const cvk_mat_t *templ,
+                              int method) {
+    const cv::Mat *mi = require_const(image);
+    const cv::Mat *mt = require_const(templ);
+    if (mi == nullptr || mt == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::matchTemplate(*mi, *mt, *dst, method);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_distance_transform(const cvk_mat_t *src, int distance_type,
+                                  int mask_size) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::distanceTransform(*m, *dst, distance_type, mask_size);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+cvk_mat_t *cvk_integral(const cvk_mat_t *src, int sdepth) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *sum = new cv::Mat();
+        cv::integral(*m, *sum, sdepth);
+        return reinterpret_cast<cvk_mat_t *>(sum);
+    });
+}
+
+int cvk_connected_components(const cvk_mat_t *src, cvk_mat_t **labels,
+                             int connectivity, int ltype) {
+    if (labels != nullptr) *labels = nullptr;
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr || labels == nullptr) return -1;
+    return guarded([&]() -> int {
+        auto *lab = new cv::Mat();
+        const int count = cv::connectedComponents(*m, *lab, connectivity, ltype);
+        *labels = reinterpret_cast<cvk_mat_t *>(lab);
+        return count;
+    });
+}
+
+int cvk_connected_components_with_stats(const cvk_mat_t *src, cvk_mat_t **labels,
+                                        cvk_mat_t **stats, cvk_mat_t **centroids,
+                                        int connectivity, int ltype) {
+    if (labels != nullptr) *labels = nullptr;
+    if (stats != nullptr) *stats = nullptr;
+    if (centroids != nullptr) *centroids = nullptr;
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr || labels == nullptr || stats == nullptr || centroids == nullptr) return -1;
+    return guarded([&]() -> int {
+        auto *lab = new cv::Mat();
+        auto *st = new cv::Mat();
+        auto *ce = new cv::Mat();
+        const int count =
+                cv::connectedComponentsWithStats(*m, *lab, *st, *ce, connectivity, ltype);
+        *labels = reinterpret_cast<cvk_mat_t *>(lab);
+        *stats = reinterpret_cast<cvk_mat_t *>(st);
+        *centroids = reinterpret_cast<cvk_mat_t *>(ce);
+        return count;
+    });
+}
+
+cvk_mat_t *cvk_pyr_mean_shift_filtering(const cvk_mat_t *src, double sp,
+                                        double sr, int max_level) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::pyrMeanShiftFiltering(*m, *dst, sp, sr, max_level);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+double cvk_threshold_with_mask(const cvk_mat_t *src, const cvk_mat_t *mask,
+                               cvk_mat_t *dst, double thresh, double maxval,
+                               int type) {
+    const cv::Mat *m = require_const(src);
+    cv::Mat *dm = require(dst);
+    if (m == nullptr || dm == nullptr) return -1.0;
+    const cv::Mat *mk = mask != nullptr ? require_const(mask) : nullptr;
+    if (mask != nullptr && mk == nullptr) return -1.0;
+    return guarded([&] {
+        return cv::thresholdWithMask(*m, *dm, mk != nullptr ? *mk : cv::noArray(),
+                                     thresh, maxval, type);
+    });
+}
+
+cvk_mat_t *cvk_create_hanning_window(int width, int height, int type) {
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        cv::createHanningWindow(*dst, cv::Size(width, height), type);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+void cvk_accumulate(const cvk_mat_t *src, cvk_mat_t *dst) {
+    const cv::Mat *m = require_const(src);
+    cv::Mat *d = require(dst);
+    if (m == nullptr || d == nullptr) return;
+    guarded([&]() -> void * {
+        cv::accumulate(*m, *d);
+        return nullptr;
+    });
+}
+
+void cvk_accumulate_square(const cvk_mat_t *src, cvk_mat_t *dst) {
+    const cv::Mat *m = require_const(src);
+    cv::Mat *d = require(dst);
+    if (m == nullptr || d == nullptr) return;
+    guarded([&]() -> void * {
+        cv::accumulateSquare(*m, *d);
+        return nullptr;
+    });
+}
+
+void cvk_accumulate_product(const cvk_mat_t *a, const cvk_mat_t *b, cvk_mat_t *dst) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    cv::Mat *d = require(dst);
+    if (ma == nullptr || mb == nullptr || d == nullptr) return;
+    guarded([&]() -> void * {
+        cv::accumulateProduct(*ma, *mb, *d);
+        return nullptr;
+    });
+}
+
+void cvk_accumulate_weighted(const cvk_mat_t *src, cvk_mat_t *dst, double alpha) {
+    const cv::Mat *m = require_const(src);
+    cv::Mat *d = require(dst);
+    if (m == nullptr || d == nullptr) return;
+    guarded([&]() -> void * {
+        cv::accumulateWeighted(*m, *d, alpha);
+        return nullptr;
+    });
+}
+
+/* =========================================================================
+ * imgproc: drawing
+ * ========================================================================= */
+
+void cvk_arrowed_line(cvk_mat_t *mat, int x1, int y1, int x2, int y2,
+                      cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::arrowedLine(*m, cv::Point(x1, y1), cv::Point(x2, y2), cv_scalar(color),
+                        thickness, cv::LINE_8);
+        return nullptr;
+    });
+}
+
+void cvk_draw_marker(cvk_mat_t *mat, int x, int y, int marker_type, int size,
+                     cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::drawMarker(*m, cv::Point(x, y), cv_scalar(color), marker_type, size,
+                       thickness, cv::LINE_8);
+        return nullptr;
+    });
+}
+
+void cvk_ellipse(cvk_mat_t *mat, int cx, int cy, int axes_x, int axes_y,
+                 double angle, double start_angle, double end_angle,
+                 cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        cv::ellipse(*m, cv::Point(cx, cy), cv::Size(axes_x, axes_y), angle,
+                    start_angle, end_angle, cv_scalar(color), thickness, cv::LINE_8);
+        return nullptr;
+    });
+}
+
+void cvk_fill_poly(cvk_mat_t *mat, const unsigned char *flat, size_t len,
+                   cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        std::vector<std::vector<cv::Point>> polygons = decode_contours(flat, len);
+        if (thickness < 0) {
+            cv::fillPoly(*m, polygons, cv_scalar(color), cv::LINE_8);
+        } else {
+            cv::polylines(*m, polygons, true, cv_scalar(color), thickness, cv::LINE_8);
+        }
+        return nullptr;
+    });
+}
+
+void cvk_polylines(cvk_mat_t *mat, const unsigned char *flat, size_t len,
+                   int closed, cvk_scalar_t color, int thickness) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> void * {
+        std::vector<std::vector<cv::Point>> pts = decode_contours(flat, len);
+        cv::polylines(*m, pts, closed != 0, cv_scalar(color), thickness, cv::LINE_8);
+        return nullptr;
+    });
+}
+
+/* =========================================================================
+ * imgproc: CLAHE
+ * ========================================================================= */
+
+cvk_clahe_t *cvk_clahe_create(double clip_limit, int tile_width, int tile_height) {
+    return guarded([&]() -> cvk_clahe_t * {
+        auto *handle = new cvk_clahe;
+        handle->ptr = cv::createCLAHE(clip_limit, cv::Size(tile_width, tile_height));
+        return reinterpret_cast<cvk_clahe_t *>(handle);
+    });
+}
+
+cvk_mat_t *cvk_clahe_apply(cvk_clahe_t *clahe, const cvk_mat_t *src) {
+    const cv::Mat *m = require_const(src);
+    if (clahe == nullptr || clahe->ptr.empty() || m == nullptr) {
+        record_error("null CLAHE handle or source");
+        return nullptr;
+    }
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        clahe->ptr->apply(*m, *dst);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+void cvk_clahe_set_clip_limit(cvk_clahe_t *clahe, double clip_limit) {
+    if (clahe == nullptr || clahe->ptr.empty()) {
+        record_error("null CLAHE handle");
+        return;
+    }
+    guarded([&]() -> void * {
+        clahe->ptr->setClipLimit(clip_limit);
+        return nullptr;
+    });
+}
+
+void cvk_clahe_release(cvk_clahe_t *clahe) {
+    if (clahe == nullptr) return;
+    guarded([&]() -> void * {
+        delete clahe;
+        return nullptr;
+    });
+}
+
+/* =========================================================================
+ * imgcodecs additions
+ * ========================================================================= */
+
+int cvk_imcount(const char *filename) {
+    if (filename == nullptr) {
+        record_error("null filename");
+        return -1;
+    }
+    return guarded([&] { return static_cast<int>(cv::imcount(filename)); });
+}
+
+int cvk_have_image_reader(const char *ext) {
+    if (ext == nullptr) {
+        record_error("null extension");
+        return 0;
+    }
+    return guarded([&] { return cv::haveImageReader(ext) ? 1 : 0; });
+}
+
+int cvk_have_image_writer(const char *ext) {
+    if (ext == nullptr) {
+        record_error("null extension");
+        return 0;
+    }
+    return guarded([&] { return cv::haveImageWriter(ext) ? 1 : 0; });
+}
+
+int cvk_imwrite_params(const char *filename, const cvk_mat_t *mat,
+                       const int *params, size_t params_len) {
+    if (filename == nullptr) {
+        record_error("null filename");
+        return 0;
+    }
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return 0;
+    return guarded([&] {
+        const std::vector<int> p(params, params + params_len);
+        return cv::imwrite(filename, *m, p) ? 1 : 0;
+    });
+}
+
+unsigned char *cvk_imencode_params(const char *ext, const cvk_mat_t *mat,
+                                   const int *params, size_t params_len,
+                                   size_t *out_len) {
+    if (out_len != nullptr) *out_len = 0;
+    if (ext == nullptr) {
+        record_error("null extension");
+        return nullptr;
+    }
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> unsigned char * {
+        const std::vector<int> p(params, params + params_len);
+        std::vector<uchar> buf;
+        if (!cv::imencode(ext, *m, buf, p)) {
+            record_error("imencode failed");
+            return static_cast<unsigned char *>(nullptr);
+        }
+        auto *copy = static_cast<unsigned char *>(std::malloc(buf.size()));
+        if (copy == nullptr) throw std::bad_alloc();
+        std::memcpy(copy, buf.data(), buf.size());
+        if (out_len != nullptr) *out_len = buf.size();
+        return copy;
+    });
+}
 
 } /* extern "C" */

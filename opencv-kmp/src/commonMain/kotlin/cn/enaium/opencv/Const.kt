@@ -192,3 +192,234 @@ object LineTypes {
     const val LINE_8: Int = 8
     const val LINE_AA: Int = 16
 }
+
+// =========================================================================
+// core constants
+// =========================================================================
+
+/** OpenCV's `cv::NormTypes`. */
+object NormTypes {
+    const val INF: Int = 1
+    const val L1: Int = 4
+    const val L2: Int = 5
+    const val L2SQR: Int = 6
+    const val HAMMING: Int = 7
+    const val HAMMING2: Int = 8
+    const val TYPE_MASK: Int = 7
+    const val RELATIVE: Int = 8
+    const val MINMAX: Int = 32
+}
+
+/** OpenCV's `cv::DecompTypes` (matrix inversion / solving methods). */
+object DecompTypes {
+    const val LU: Int = 0
+    const val SVD: Int = 1
+    const val EIG: Int = 2
+    const val CHOLESKY: Int = 3
+    const val QR: Int = 4
+    const val NORMAL: Int = 16
+}
+
+/** OpenCV's `cv::RotateFlags`. */
+object RotateFlags {
+    const val ROTATE_90_CLOCKWISE: Int = 0
+    const val ROTATE_180: Int = 1
+    const val ROTATE_270: Int = 2
+}
+
+/** OpenCV's `cv::BorderTypes`. */
+object BorderTypes {
+    const val CONSTANT: Int = 0
+    const val REPLICATE: Int = 1
+    const val REFLECT: Int = 2
+    const val WRAP: Int = 3
+    const val REFLECT_101: Int = 4
+    const val TRANSPARENT: Int = 16
+    const val ISOLATED: Int = 8
+}
+
+/** OpenCV's `cv::CmpTypes`. */
+object CompareOps {
+    const val CMP_EQ: Int = 0
+    const val CMP_GT: Int = 1
+    const val CMP_GE: Int = 2
+    const val CMP_LT: Int = 3
+    const val CMP_LE: Int = 4
+    const val CMP_NE: Int = 5
+}
+
+/** OpenCV's sort flags. */
+object SortFlags {
+    const val EVERY_ROW: Int = 0
+    const val EVERY_COLUMN: Int = 1
+    const val ASCENDING: Int = 0
+    const val DESCENDING: Int = 16
+}
+
+/** OpenCV's `cv::ReduceTypes`. */
+object ReduceTypes {
+    const val SUM: Int = 0
+    const val AVG: Int = 1
+    const val MAX: Int = 2
+    const val MIN: Int = 3
+}
+
+/** OpenCV's `cv::DftFlags`. */
+object DftFlags {
+    const val INVERSE: Int = 1
+    const val SCALE: Int = 2
+    const val ROWS: Int = 4
+    const val COMPLEX_OUTPUT: Int = 16
+    const val REAL_OUTPUT: Int = 32
+    const val COMPLEX_INPUT: Int = 64
+    const val DCT_INVERSE: Int = 256
+    const val DCT_ROWS: Int = 512
+}
+
+// =========================================================================
+// imgproc constants (continued)
+// =========================================================================
+
+/** OpenCV's `cv::MorphShapes`. */
+object MorphShapes {
+    const val RECT: Int = 0
+    const val CROSS: Int = 1
+    const val ELLIPSE: Int = 2
+}
+
+/** OpenCV's `cv::MorphTypes`. */
+object MorphTypes {
+    const val ERODE: Int = 0
+    const val DILATE: Int = 1
+    const val OPEN: Int = 2
+    const val CLOSE: Int = 3
+    const val GRADIENT: Int = 4
+    const val TOPHAT: Int = 5
+    const val BLACKHAT: Int = 6
+    const val HITMISS: Int = 7
+}
+
+/** OpenCV's `cv::WarpPolarMode`. */
+object WarpPolarMode {
+    const val POLAR: Int = 0
+    const val LOG: Int = 256
+}
+
+/** OpenCV's `cv::ColormapTypes`. */
+object ColormapTypes {
+    const val AUTUMN: Int = 0
+    const val BONE: Int = 1
+    const val JET: Int = 2
+    const val WINTER: Int = 3
+    const val RAINBOW: Int = 4
+    const val OCEAN: Int = 5
+    const val SUMMER: Int = 6
+    const val SPRING: Int = 7
+    const val COOL: Int = 8
+    const val HSV: Int = 9
+    const val PINK: Int = 10
+    const val HOT: Int = 11
+    const val PARULA: Int = 12
+}
+
+/** OpenCV's histogram comparison methods. */
+object HistCompMethods {
+    const val CORREL: Int = 0
+    const val CHISQR: Int = 1
+    const val INTERSECT: Int = 2
+    const val BHATTACHARYYA: Int = 3
+
+    /** Alias of [BHATTACHARYYA]. */
+    const val HELLINGER: Int = 3
+    const val CHISQR_ALT: Int = 4
+    const val KL_DIV: Int = 5
+}
+
+/** OpenCV's Hu moment shape matching methods. */
+object ContoursMatchMethods {
+    const val CONTOURS_MATCH_I1: Int = 1
+    const val CONTOURS_MATCH_I2: Int = 2
+    const val CONTOURS_MATCH_I3: Int = 3
+}
+
+/** OpenCV's `cv::TemplateMatchModes`. */
+object TemplateMatchModes {
+    const val SQDIFF: Int = 0
+    const val SQDIFF_NORMED: Int = 1
+    const val CCORR: Int = 2
+    const val CCORR_NORMED: Int = 3
+    const val CCOEFF: Int = 4
+    const val CCOEFF_NORMED: Int = 5
+}
+
+/** OpenCV's contour retrieval modes. */
+object RetrievalModes {
+    const val RETR_EXTERNAL: Int = 0
+    const val RETR_LIST: Int = 1
+    const val RETR_CCOMP: Int = 2
+    const val RETR_TREE: Int = 3
+    const val RETR_FLOODFILL: Int = 4
+}
+
+/** OpenCV's contour approximation modes. */
+object ContourApproximationModes {
+    const val CHAIN_APPROX_NONE: Int = 1
+    const val CHAIN_APPROX_SIMPLE: Int = 2
+    const val CHAIN_APPROX_TC89_L1: Int = 3
+    const val CHAIN_APPROX_TC89_KCOS: Int = 4
+}
+
+/** OpenCV's `cv::MarkerTypes`. */
+object MarkerTypes {
+    const val CROSS: Int = 0
+    const val TILTED_CROSS: Int = 1
+    const val STAR: Int = 2
+    const val DIAMOND: Int = 3
+    const val SQUARE: Int = 4
+    const val TILTED_SQUARE: Int = 5
+}
+
+/** OpenCV's `cv::DistanceTypes`. */
+object DistanceTypes {
+    const val USER: Int = -1
+    const val L1: Int = 1
+    const val L2: Int = 2
+    const val C: Int = 3
+    const val L12: Int = 4
+    const val FAIR: Int = 5
+    const val WELSCH: Int = 6
+    const val HUBER: Int = 7
+}
+
+/** Mask sizes accepted by [Mat.distanceTransform]. */
+object DistanceTransformMasks {
+    const val MASK_3: Int = 3
+    const val MASK_5: Int = 5
+    const val PRECISE: Int = 0
+}
+
+/** Connectivity flags for flood fill. */
+object FloodFillFlags {
+    const val CONNECTIVITY_4: Int = 4
+    const val CONNECTIVITY_8: Int = 8
+    const val FIXED_RANGE: Int = 1 shl 16
+    const val MASK_ONLY: Int = 1 shl 17
+}
+
+/** OpenCV's `cv::HoughTypes`. */
+object HoughTypes {
+    const val STANDARD: Int = 0
+    const val PROBABILISTIC: Int = 1
+    const val GRADIENT: Int = 3
+    const val GRADIENT_ALT: Int = 4
+}
+
+/** Subset of `cv::ImwriteJPEGFlags` / `cv::ImwritePNGFlags` for codec params. */
+object ImwriteParams {
+    const val JPEG_QUALITY: Int = 1
+    const val JPEG_PROGRESSIVE: Int = 2
+    const val JPEG_OPTIMIZE: Int = 3
+    const val PNG_COMPRESSION: Int = 16
+    const val PNG_STRATEGY: Int = 17
+    const val PNG_BILEVEL: Int = 18
+}
