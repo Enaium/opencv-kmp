@@ -122,7 +122,10 @@ object JniModules {
                     else -> parts.last()
                 }
                 val ndk = ndkPath()
-                (ndk != null) to (
+                // Android artifacts are built by the Linux CI job only; other
+                // hosts may still have an NDK (GitHub runners do) but must not
+                // attempt these cross builds.
+                ((ndk != null) && host.isLinux) to (
                         if (ndk == null) emptyList() else listOf(
                             "-DCMAKE_TOOLCHAIN_FILE=$ndk/build/cmake/android.toolchain.cmake",
                             "-DANDROID_ABI=$abi",

@@ -129,12 +129,13 @@ kotlin {
     // ==================== cinterop for all native targets ====================
     targets.withType<KotlinNativeTarget> {
         val targetName = this.name
-        // Targets whose OpenCV build includes the KleidiCV/carotene ARM HALs.
-        val armTargets = setOf(
-            "macosArm64", "linuxArm64",
-            "androidNativeArm64", "androidNativeArm32",
-        )
+        // KleidiCV ships for AArch64 only; carotene (tegra_hal) covers 32-bit ARM too.
+        val aarch64Targets = setOf("macosArm64", "linuxArm64", "androidNativeArm64")
+        val arm32Targets = setOf("androidNativeArm32")
+        val armHalLibs = listOf("kleidicv", "kleidicv_hal", "kleidicv_thread", "tegra_hal")
+        val arm32HalLibs = listOf("tegra_hal")
         val canBuild = canBuildNativeTarget(targetName)
+
 
         compilations.getByName("main") {
             cinterops {
@@ -167,13 +168,12 @@ kotlin {
                             "opencv_geometry",
                             "opencv_core",
                         ) +
-                                // KleidiCV HAL and carotene exist only on ARM
-                                (if (targetName in armTargets) listOf(
-                                    "kleidicv",
-                                    "kleidicv_hal",
-                                    "kleidicv_thread",
-                                    "tegra_hal",
-                                ) else emptyList()) +
+                                // ARM HAL archives exist only on ARM targets
+                                (when {
+                                    targetName in aarch64Targets -> armHalLibs
+                                    targetName in arm32Targets -> arm32HalLibs
+                                    else -> emptyList()
+                                }) +
                                 listOf(
                                     "libjpeg-turbo",
                                     "libpng",
