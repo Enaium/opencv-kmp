@@ -45,3 +45,4 @@ bin/
 ### Mac OS ###
 .DS_Store
 local.properties
+gradle/gradle-daemon-jvm.properties
