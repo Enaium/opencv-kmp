@@ -100,7 +100,8 @@ class ExtendedApiTest {
 
     @Test
     fun invOfSingularReturnsNull() {
-        mat(2, 2, MatType.CV_32FC1).use { singular ->
+        // all-zero matrix is singular regardless of heap garbage elsewhere
+        zeros(2, 2, MatType.CV_32FC1).use { singular ->
             assertNull(singular.inv())
         }
     }
@@ -219,7 +220,7 @@ class ExtendedApiTest {
             }
             assertTrue(img.hasNonZero)
         }
-        mat(2, 2, MatType.CV_8UC1).use { empty ->
+        zeros(2, 2, MatType.CV_8UC1).use { empty ->
             assertTrue(!empty.hasNonZero)
         }
     }
@@ -278,7 +279,7 @@ class ExtendedApiTest {
 
     @Test
     fun eigenFindsDescendingValues() {
-        mat(2, 2, MatType.CV_64FC1).use { diagonal ->
+        zeros(2, 2, MatType.CV_64FC1).use { diagonal ->
             diagonal[0, 0] = 3.0
             diagonal[1, 1] = 1.0
             val (values, vectors) = diagonal.eigen()
