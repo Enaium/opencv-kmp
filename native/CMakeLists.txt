@@ -214,4 +214,24 @@ foreach(_n libjpeg-turbo libpng zlib)
     list(APPEND CVK_COPIED_LIBS "${_out}")
 endforeach()
 
+# GNU C++ runtime for cross-built targets: Kotlin/Native executables have no
+# libstdc++ of their own, and the OpenCV archives are GNU C++ objects. The
+# static archive resolves lazily, so its position in the embed list is safe.
+if(EXISTS "/usr/aarch64-linux-gnu/lib/libstdc++.a")
+    set(_out "${CVK_OUTPUT_DIR}/libstdc++_linux_arm64.a")
+    add_custom_command(OUTPUT "${_out}"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "/usr/aarch64-linux-gnu/lib/libstdc++.a" "${_out}"
+            VERBATIM)
+    list(APPEND CVK_COPIED_LIBS "${_out}")
+endif()
+if(EXISTS "/usr/x86_64-w64-mingw32/lib/libstdc++.a")
+    set(_out "${CVK_OUTPUT_DIR}/libstdc++_mingw_x64.a")
+    add_custom_command(OUTPUT "${_out}"
+            COMMAND "${CMAKE_COMMAND}" -E copy
+                    "/usr/x86_64-w64-mingw32/lib/libstdc++.a" "${_out}"
+            VERBATIM)
+    list(APPEND CVK_COPIED_LIBS "${_out}")
+endif()
+
 add_custom_target(opencv_kmp ALL DEPENDS ${CVK_COPIED_LIBS})

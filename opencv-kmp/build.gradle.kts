@@ -178,7 +178,13 @@ kotlin {
                                     "libjpeg-turbo",
                                     "libpng",
                                     "zlib",
-                                )
+                                ) +
+                                // GNU C++ runtime for cross-built targets
+                                (when (targetName) {
+                                    "linuxArm64" -> listOf("stdc++_linux_arm64")
+                                    "mingwX64" -> listOf("stdc++_mingw_x64")
+                                    else -> emptyList()
+                                })
                         extraOpts(
                             listOf("-libraryPath", outputDir.absolutePath) +
                                     embeddedLibs.flatMap { listOf("-staticLibrary", "lib$it.a") }
