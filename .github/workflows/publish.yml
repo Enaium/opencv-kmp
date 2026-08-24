@@ -1,0 +1,178 @@
+name: Publish
+
+"on":
+  workflow_dispatch:
+
+# Publishes every artifact from the runner that can build it. Maven Central
+# coordinates are immutable, so each publication is produced by exactly one
+# runner:
+#
+#   macos-14      -> :opencv-kmp metadata + jvm + macosArm64/macosX64 klibs
+#                    (with the embedded OpenCV static library) + the
+#                    opencv-kmp-jni-jvm-darwin-{aarch64,x86_64} artifacts
+#   ubuntu-latest -> :opencv-kmp linuxX64 + linuxArm64 + mingwX64 +
+#                    androidNative klibs (with the embedded static library;
+#                    linuxArm64/mingw/android are cross-compiled) +
+#                    opencv-kmp-jni-jvm-linux-* and opencv-kmp-jni-jvm-android-*
+#   windows-latest -> opencv-kmp-jni-jvm-windows-x86_64 (native MinGW build)
+#
+# The kotlinMultiplatform metadata module (published from macOS) redirects to
+# the per-target klib modules, so all of them must be published before
+# consumers can resolve the artifact.
+#
+# Trigger: run manually via the Actions tab. Version is fixed at 1.0.0
+# (build.gradle.kts); no input required.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   MAVEN_CENTRAL_USERNAME   Sonatype Central Portal user-token username
+#   MAVEN_CENTRAL_PASSWORD   Sonatype Central Portal user-token password
+#   SIGNING_KEY              base64-encoded PGP secret key ring (.gpg, binary)
+#   SIGNING_KEY_ID           8-hex-digit key id (without the 0x prefix)
+#   SIGNING_PASSWORD         Passphrase of the signing key
+
+jobs:
+  publish-macos:
+    name: Publish macOS (metadata + jvm + Apple klibs)
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
+
+      # Per-target publications are used instead of
+      # publishAllPublicationsToMavenCentralRepository so that the linux /
+      # android klibs (built with their embedded static libraries elsewhere)
+      # are not published from here as bindings-only klibs.
+      - name: Publish metadata, jvm, macOS klibs and the darwin JNI artifacts
+        run: >
+          ./gradlew --no-daemon --stacktrace
+          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
+          -Psigning.secretKeyRingFile="${{ runner.temp }}/signing-key.gpg"
+          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
+          :opencv-kmp:publishKotlinMultiplatformPublicationToMavenCentralRepository
+          :opencv-kmp:publishJvmPublicationToMavenCentralRepository
+          :opencv-kmp:publishMacosArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishMacosX64PublicationToMavenCentralRepository
+          :jni-jvm-darwin-aarch64:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-darwin-x86_64:publishMavenPublicationToMavenCentralRepository
+          --continue
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+
+  publish-linux-android:
+    name: Publish Linux + Android (klibs + JNI artifacts)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install cross toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+      - name: Install Android NDK
+        run: |
+          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973" >/dev/null
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
+
+      - name: Publish linux/mingw/android klibs and their JNI artifacts
+        run: >
+          ./gradlew --no-daemon --stacktrace
+          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
+          -Psigning.secretKeyRingFile="${{ runner.temp }}/signing-key.gpg"
+          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
+          :opencv-kmp:publishLinuxX64PublicationToMavenCentralRepository
+          :opencv-kmp:publishLinuxArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishMingwX64PublicationToMavenCentralRepository
+          :opencv-kmp:publishAndroidNativeArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishAndroidNativeArm32PublicationToMavenCentralRepository
+          :opencv-kmp:publishAndroidNativeX64PublicationToMavenCentralRepository
+          :opencv-kmp:publishAndroidNativeX86PublicationToMavenCentralRepository
+          :jni-jvm-linux-x86_64:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-linux-aarch64:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-android-arm64-v8a:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-android-armeabi-v7a:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-android-x86:publishMavenPublicationToMavenCentralRepository
+          :jni-jvm-android-x86_64:publishMavenPublicationToMavenCentralRepository
+          --continue
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+
+  publish-windows:
+    name: Publish Windows (windows-x86_64 JNI artifact)
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install MinGW
+        shell: pwsh
+        run: |
+          choco install mingw -y --no-progress
+          # The JVM needs MinGW's runtime DLLs (libwinpthread-1.dll,
+          # libgcc_s_seh-1.dll) on PATH to load the JNI DLL.
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Decode signing key
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes(
+            "$env:RUNNER_TEMP\signing-key.gpg",
+            [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
+          )
+
+      - name: Publish the windows-x86_64 JNI artifact
+        shell: cmd
+        run: >
+          ./gradlew --no-daemon --stacktrace
+          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
+          -Psigning.secretKeyRingFile="${{ runner.temp }}\signing-key.gpg"
+          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
+          :jni-jvm-windows-x86_64:publishMavenPublicationToMavenCentralRepository
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
