@@ -4,8 +4,9 @@ headerFilter = opencv_kmp.h
 
 # Every OpenCV/3rdparty static archive is embedded into the klib via
 # separate -libraryPath/-staticLibrary options from build.gradle.kts.
-# Consumers additionally need these system libraries; -lstdc++ is required
-# because the static OpenCV objects are compiled with GCC libstdc++.
-linkerOpts.linux = -lm -ldl -lpthread -lstdc++
+# Consumers additionally need these system libraries. The GNU C++ runtime
+# itself travels inside the klib (libstdc++_linux_arm64/mingw_x64), so
+# -lstdc++ would only create duplicate-symbol clashes here.
+linkerOpts.linux = -lm -ldl -lpthread
 linkerOpts.mingw = -lole32
 linkerOpts.android = -lm -ldl

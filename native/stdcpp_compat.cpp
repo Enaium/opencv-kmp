@@ -33,6 +33,11 @@
 #include <new>
 #include <sstream>
 
+// Targets whose klib embeds the full modern libstdc++ archive (see the
+// CVK_SKIP_STDCPP_SHIM define in CMakeLists.txt) must not duplicate the
+// helper symbols the real archive already provides.
+#ifndef CVK_SKIP_STDCPP_SHIM
+
 // GCC 12+ inline helper; sysroots whose libstdc++ predates it (Kotlin/Native
 // Linux and MinGW) need a strong definition. The Android NDK ships its own,
 // so this TU must stay silent there or the symbol gets redefined.
@@ -47,3 +52,5 @@ namespace std {
 template class std::basic_stringstream<char, std::char_traits<char>, std::allocator<char>>;
 
 #endif /* __linux__ && !__ANDROID__ */
+
+#endif /* CVK_SKIP_STDCPP_SHIM */

@@ -326,9 +326,9 @@ if (hostOs.isMacOsX) {
             // Kotlin/Native sysroot cannot resolve; keep atomics inline.
             "-DCMAKE_C_FLAGS=-mno-outline-atomics",
             "-DCMAKE_CXX_FLAGS=-mno-outline-atomics",
-            // libpng's NEON assembly must use the target assembler, not the
-            // host one (project() now enables ASM; be explicit for safety).
             "-DCMAKE_ASM_COMPILER=aarch64-linux-gnu-gcc",
+            // the klib embeds a full libstdc++; drop the compat shims
+            "-DCVK_SKIP_STDCPP_SHIM=ON",
         ),
     )
     // Cross-compile the MinGW archive with the x86_64-w64-mingw32 toolchain
@@ -342,6 +342,8 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
             "-DWITH_KLEIDICV=OFF",
             "-DWITH_CAROTENE=OFF",
+            // the klib embeds a full libstdc++; drop the compat shims
+            "-DCVK_SKIP_STDCPP_SHIM=ON",
         ),
     )
 }
