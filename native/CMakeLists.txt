@@ -218,22 +218,18 @@ endforeach()
 # libstdc++ of their own, and the OpenCV archives are GNU C++ objects. The
 # static archive resolves lazily, so its embed position is safe. Debian keeps
 # the cross .a under versioned gcc-cross directories, hence the glob.
-file(GLOB CVK_STDCPP_ARM64
-        "/usr/aarch64-linux-gnu/lib/libstdc++.a"
-        "/usr/lib/gcc-cross/aarch64-linux-gnu/*/libstdc++.a")
-if(CVK_STDCPP_ARM64)
-    list(GET CVK_STDCPP_ARM64 0 _stdcpp_src)
-    set(_out "${CVK_OUTPUT_DIR}/libstdc++_linux_arm64.a")
-    add_custom_command(OUTPUT "${_out}"
-            COMMAND "${CMAKE_COMMAND}" -E copy "${_stdcpp_src}" "${_out}"
-            DEPENDS "${_stdcpp_src}"
-            VERBATIM)
-    list(APPEND CVK_COPIED_LIBS "${_out}")
-endif()
+file(GLOB_RECURSE CVK_STDCPP_ARM64_CANDIDATES
+        "/usr/aarch64-linux-gnu/*.a"
+        "/usr/lib/gcc-cross/aarch64-linux-gnu/*.a")
+list(FILTER CVK_STDCPP_ARM64_CANDIDATES INCLUDE REGEX "libstdc\\+\\+\\.a$")
+set(CVK_STDCPP_ARM64 ${CVK_STDCPP_ARM64_CANDIDATES})
 
-file(GLOB CVK_STDCPP_MINGW
-        "/usr/x86_64-w64-mingw32/lib/libstdc++.a"
-        "/usr/lib/gcc-cross/x86_64-w64-mingw32/*/libstdc++.a")
+# MinGW splits the runtime across thread-model directories; search deep.
+file(GLOB_RECURSE CVK_STDCPP_MINGW_CANDIDATES
+        "/usr/x86_64-w64-mingw32/*.a"
+        "/usr/lib/gcc-cross/x86_64-w64-mingw32/*.a")
+list(FILTER CVK_STDCPP_MINGW_CANDIDATES INCLUDE REGEX "libstdc\\+\\+\\.a$")
+set(CVK_STDCPP_MINGW ${CVK_STDCPP_MINGW_CANDIDATES})
 if(CVK_STDCPP_MINGW)
     list(GET CVK_STDCPP_MINGW 0 _stdcpp_src)
     set(_out "${CVK_OUTPUT_DIR}/libstdc++_mingw_x64.a")
