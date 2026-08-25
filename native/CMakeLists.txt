@@ -255,7 +255,7 @@ endif()
 
 if(EXISTS "/usr/x86_64-w64-mingw32")
     cvk_find_cross_stdcpp(CVK_STDCPP_MINGW_SRC
-            "/usr/x86_64-w64-mingw32" "/usr/lib/gcc-cross/x86_64-w64-mingw32")
+            "/usr/x86_64-w64-mingw32" "/usr/lib/gcc/x86_64-w64-mingw32")
     set(_out "${CVK_OUTPUT_DIR}/libstdc++_mingw_x64.a")
     add_custom_command(OUTPUT "${_out}"
             COMMAND "${CMAKE_COMMAND}" -E copy "${CVK_STDCPP_MINGW_SRC}" "${_out}"
