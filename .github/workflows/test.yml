@@ -20,8 +20,75 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fast-fail cross-platform link tests in a dedicated job before the
+  # expensive three-OS matrix runs: builds ONLY the cross targets' native
+  # archives + cinterop klibs and links the example executables/shared libs.
+  link-test:
+    name: Link-test (cross targets)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install cross toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+      - name: Install Android NDK
+        run: |
+          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973" >/dev/null
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          validate-wrappers: false
+
+      - name: Cache cross native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-linuxArm64
+            opencv-kmp/build/cmake-mingwX64
+            opencv-kmp/build/cmake-androidNative*
+            opencv-kmp/build/native/*
+          key: linktest-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'opencv submodule') }}
+          restore-keys: linktest-${{ runner.os }}-
+
+      - name: Build cross archives and klibs
+        run: >
+          ./gradlew --no-daemon --stacktrace --continue
+          :opencv-kmp:cinteropOpencvLinuxArm64
+          :opencv-kmp:cinteropOpencvMingwX64
+          :opencv-kmp:cinteropOpencvAndroidNativeArm64
+          :opencv-kmp:cinteropOpencvAndroidNativeArm32
+          :opencv-kmp:cinteropOpencvAndroidNativeX64
+          :opencv-kmp:cinteropOpencvAndroidNativeX86
+
+      - name: Link example for every cross target
+        run: >
+          ./gradlew --no-daemon --stacktrace --continue
+          :examples:basic:linkDebugExecutableLinuxArm64
+          :examples:basic:linkDebugExecutableMingwX64
+          :examples:basic:linkMainDebugSharedAndroidNativeArm64
+          :examples:basic:linkMainDebugSharedAndroidNativeArm32
+          :examples:basic:linkMainDebugSharedAndroidNativeX64
+          :examples:basic:linkMainDebugSharedAndroidNativeX86
+
+
   test-macos:
     name: Test macOS ARM64
+    needs: link-test
     runs-on: macos-14
     steps:
       - name: Check out repository
@@ -59,6 +126,9 @@ jobs:
           :jni-jvm-darwin-aarch64:publishToMavenLocal
           :jni-jvm-darwin-x86_64:publishToMavenLocal
 
+      - name: Compile Android interop module
+        run: ./gradlew --no-daemon :opencv-kmp-android:compileKotlin
+
       - name: Run JVM tests
         run: ./gradlew --no-daemon :opencv-kmp:jvmTest
 
@@ -73,6 +143,7 @@ jobs:
 
   test-linux:
     name: Test Linux x64
+    needs: link-test
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -121,6 +192,7 @@ jobs:
           :opencv-kmp:publishAndroidNativeArm32PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeX64PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeX86PublicationToMavenLocal
+          :opencv-kmp-android:publishToMavenLocal
           :jni-jvm-linux-x86_64:publishToMavenLocal
           :jni-jvm-linux-aarch64:publishToMavenLocal
           :jni-jvm-android-arm64-v8a:publishToMavenLocal
@@ -128,27 +200,21 @@ jobs:
           :jni-jvm-android-x86:publishToMavenLocal
           :jni-jvm-android-x86_64:publishToMavenLocal
 
+      - name: Compile Android interop module
+        run: ./gradlew --no-daemon :opencv-kmp-android:compileKotlin
+
       - name: Run JVM tests
         run: ./gradlew --no-daemon :opencv-kmp:jvmTest
 
       - name: Run native tests (linuxX64)
         run: ./gradlew --no-daemon :opencv-kmp:linuxX64Test
 
-      - name: Link-test remaining native targets
-        run: >
-          ./gradlew --no-daemon --stacktrace
-          :examples:basic:linkDebugExecutableLinuxArm64
-          :examples:basic:linkDebugExecutableMingwX64
-          :examples:basic:linkMainDebugSharedAndroidNativeArm64
-          :examples:basic:linkMainDebugSharedAndroidNativeArm32
-          :examples:basic:linkMainDebugSharedAndroidNativeX64
-          :examples:basic:linkMainDebugSharedAndroidNativeX86
-
       - name: Run example (linuxX64)
         run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
 
   test-windows:
     name: Test Windows x64
+    needs: link-test
     runs-on: windows-latest
     steps:
       - name: Check out repository
