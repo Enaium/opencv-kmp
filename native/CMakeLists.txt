@@ -125,6 +125,7 @@ if(CVK_SKIP_STDCPP_SHIM)
     target_compile_definitions(cvk_shim PRIVATE CVK_SKIP_STDCPP_SHIM)
 endif()
 target_include_directories(cvk_shim PRIVATE
+        "${CMAKE_CURRENT_LIST_DIR}/include"
         # Public umbrella headers and per-module headers straight from the
         # source tree (no install step involved).
         "${OPENCV_SOURCE_DIR}/include"
