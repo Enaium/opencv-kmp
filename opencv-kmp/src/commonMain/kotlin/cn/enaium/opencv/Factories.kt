@@ -190,3 +190,81 @@ internal expect fun contourAreaNative(data: ByteArray): Double
 internal expect fun arcLengthNative(data: ByteArray, closed: Boolean): Double
 
 internal expect fun contourRect(contour: List<Point>): Rect
+
+// =========================================================================
+// org.opencv.core parity: clustering / decomposition
+// =========================================================================
+
+/** Result of [kmeans]; every Mat must be closed by the caller. */
+data class KmeansResult(
+    val compactness: Double,
+    val labels: Mat,
+    val centers: Mat,
+)
+
+/**
+ * `cv::kmeans` over rows of [data] (N x dims, CV_32F). Pass
+ * [KmeansFlags.PP_CENTERS] for k-means++ seeding.
+ */
+expect fun kmeans(
+    data: Mat,
+    k: Int,
+    criteria: TermCriteria = TermCriteria.epsilon(1e-6, 100),
+    attempts: Int = 10,
+    flags: Int = KmeansFlags.PP_CENTERS,
+): KmeansResult
+
+/** Result of [svDecomp]; Mats must be closed by the caller. */
+data class Svd(val w: Mat, val u: Mat, val vt: Mat)
+
+/** `cv::SVDecomp` ([DecompTypes.SVD] flag variants apply). */
+expect fun svDecomp(src: Mat, flags: Int = 0): Svd
+
+/** `cv::SVBackSubst`: b solved through the decomposition parts. */
+expect fun svdBackSubst(w: Mat, u: Mat, vt: Mat, b: Mat): Mat
+
+/** Result of the PCA family; Mats must be closed by the caller. */
+data class Pca(val mean: Mat, val eigenvectors: Mat)
+
+/** `cv::PCACompute` keeping [maxComponents] eigenvectors. */
+expect fun pcaCompute(data: Mat, maxComponents: Int): Pca
+
+/** `cv::PCACompute2` keeping [retainedVariance] of total variance. */
+expect fun pcaComputeVariance(data: Mat, retainedVariance: Double): Pca
+
+/** `cv::PCAProject`: data projected onto the PCA basis. */
+expect fun pcaProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat
+
+/** `cv::PCABackProject`: reconstruction from projected coefficients. */
+expect fun pcaBackProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat
+
+/** `cv::Mahalanobis` distance using the inverse covariance matrix. */
+expect fun mahalanobis(v1: Mat, v2: Mat, icovar: Mat): Double
+
+// =========================================================================
+// org.opencv.imgproc parity
+// =========================================================================
+
+/**
+ * `cv::cornerSubPix`: refines [corners] in place semantics and returns the
+ * refined coordinates. Pass [zeroZone] `Size(-1, -1)` for no dead zone.
+ */
+expect fun cornerSubPix(
+    image: Mat,
+    corners: List<Point>,
+    winSize: Size = Size(3, 3),
+    zeroZone: Size = Size(-1, -1),
+    criteria: TermCriteria = TermCriteria.count(30),
+): List<Point>
+
+/** Earth Mover's Distance between two float signatures. */
+expect fun emd(signature1: Mat, signature2: Mat, distType: Int = DistanceTypes.L2): Double
+
+/** `cv::grabCut`; see [GrabCutModes]. Models are created internally. */
+expect fun grabCut(
+    image: Mat,
+    mask: Mat,
+    rect: Rect?,
+    iterations: Int = 5,
+    mode: Int = GrabCutModes.INIT_WITH_RECT,
+)

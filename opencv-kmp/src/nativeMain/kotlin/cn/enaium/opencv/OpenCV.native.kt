@@ -52,6 +52,7 @@ import cvk.cvk_compare
 import cvk.cvk_connected_components
 import cvk.cvk_connected_components_with_stats
 import cvk.cvk_contour_area
+import cvk.cvk_corner_sub_pix
 import cvk.cvk_convert_scale_abs
 import cvk.cvk_copy_make_border
 import cvk.cvk_corner_harris
@@ -64,6 +65,7 @@ import cvk.cvk_dft
 import cvk.cvk_dilate
 import cvk.cvk_distance_transform
 import cvk.cvk_div_spectrums
+import cvk.cvk_emd
 import cvk.cvk_draw_contours
 import cvk.cvk_draw_marker
 import cvk.cvk_eigen
@@ -88,6 +90,7 @@ import cvk.cvk_get_rect_sub_pix
 import cvk.cvk_get_rotation_matrix_2d
 import cvk.cvk_get_structuring_element
 import cvk.cvk_good_features_to_track
+import cvk.cvk_grab_cut
 import cvk.cvk_has_non_zero
 import cvk.cvk_hough_circles
 import cvk.cvk_hough_lines
@@ -105,6 +108,7 @@ import cvk.cvk_imwrite
 import cvk.cvk_imwrite_params
 import cvk.cvk_insert_channel
 import cvk.cvk_integral
+import cvk.cvk_kmeans
 import cvk.cvk_invert_affine_transform
 import cvk.cvk_laplacian
 import cvk.cvk_last_error
@@ -112,8 +116,10 @@ import cvk.cvk_line
 import cvk.cvk_log
 import cvk.cvk_lut
 import cvk.cvk_magnitude
+import cvk.cvk_mahalanobis
 import cvk.cvk_mat_absdiff
 import cvk.cvk_mat_add
+import cvk.cvk_mat_adjust_roi
 import cvk.cvk_mat_bitwise_and
 import cvk.cvk_mat_bitwise_not
 import cvk.cvk_mat_bitwise_or
@@ -124,6 +130,7 @@ import cvk.cvk_mat_cols
 import cvk.cvk_mat_col_range
 import cvk.cvk_mat_convert_to
 import cvk.cvk_mat_count_non_zero
+import cvk.cvk_mat_cross
 import cvk.cvk_mat_create
 import cvk.cvk_mat_create_filled
 import cvk.cvk_mat_data
@@ -131,13 +138,18 @@ import cvk.cvk_mat_diag
 import cvk.cvk_mat_determinant
 import cvk.cvk_mat_divide
 import cvk.cvk_mat_dot
+import cvk.cvk_mat_dump
 import cvk.cvk_mat_elem_size
 import cvk.cvk_mat_eye
 import cvk.cvk_mat_flip
 import cvk.cvk_mat_get
+import cvk.cvk_mat_get_values
 import cvk.cvk_mat_in_range
 import cvk.cvk_mat_inv
+import cvk.cvk_mat_is_continuous
 import cvk.cvk_mat_is_empty
+import cvk.cvk_mat_is_submatrix
+import cvk.cvk_mat_locate_roi
 import cvk.cvk_mat_max
 import cvk.cvk_mat_mean
 import cvk.cvk_mat_mean_stddev
@@ -145,6 +157,7 @@ import cvk.cvk_mat_min
 import cvk.cvk_mat_min_max_loc
 import cvk.cvk_mat_multiply
 import cvk.cvk_mat_ones
+import cvk.cvk_mat_put_values
 import cvk.cvk_mat_release
 import cvk.cvk_mat_reshape
 import cvk.cvk_mat_roi
@@ -170,6 +183,10 @@ import cvk.cvk_morphology_ex
 import cvk.cvk_mul_spectrums
 import cvk.cvk_normalize
 import cvk.cvk_num_threads
+import cvk.cvk_pca_backproject
+import cvk.cvk_pca_compute
+import cvk.cvk_pca_compute_variance
+import cvk.cvk_pca_project
 import cvk.cvk_patch_nans
 import cvk.cvk_perspective_transform
 import cvk.cvk_phase
@@ -200,6 +217,8 @@ import cvk.cvk_split
 import cvk.cvk_sqrt
 import cvk.cvk_sqr_box_filter
 import cvk.cvk_stack_blur
+import cvk.cvk_svd_backsubst
+import cvk.cvk_svd_decomp
 import cvk.cvk_merge
 import cvk.cvk_threshold
 import cvk.cvk_threshold_with_mask
@@ -964,6 +983,52 @@ internal class NativeMat internal constructor(
         }
     }
 
+    // ---- org.opencv.core.Mat parity ------------------------------------------
+
+    override fun adjustROI(dtop: Int, dbottom: Int, dleft: Int, dright: Int): Mat =
+        nativeMat(cvk_mat_adjust_roi(check(), dtop, dbottom, dleft, dright), "adjustROI")
+
+    override fun locateROI(): Pair<Point, Size> = memScoped {
+        val out = allocArray<IntVar>(4)
+        cvk_mat_locate_roi(check(), out)
+        Point(out[0], out[1]) to Size(out[2], out[3])
+    }
+
+    override val isContinuous: Boolean
+        get() = cvk_mat_is_continuous(check()) != 0
+
+    override val isSubmatrix: Boolean
+        get() = cvk_mat_is_submatrix(check()) != 0
+
+    override infix fun cross(other: Mat): Mat =
+        nativeMat(cvk_mat_cross(check(), other.checked), "cross")
+
+    override fun dump(): String {
+        val text = cvk_mat_dump(check())
+            ?: throw OpenCVException("dump", lastNativeError())
+        return text.toKString()
+    }
+
+    override fun put(row: Int, col: Int, values: DoubleArray): Int {
+        if (values.isEmpty()) return 0
+        return values.usePinned { pinned ->
+            cvk_mat_put_values(
+                check(), row, col, pinned.addressOf(0),
+                values.size.convert<size_t>(),
+            ).toInt()
+        }
+    }
+
+    override fun get(row: Int, col: Int, values: DoubleArray): Int {
+        if (values.isEmpty()) return 0
+        return values.usePinned { pinned ->
+            cvk_mat_get_values(
+                check(), row, col, pinned.addressOf(0),
+                values.size.convert<size_t>(),
+            ).toInt()
+        }
+    }
+
     override fun close() {
         val handle = raw ?: return
         raw = null
@@ -1252,3 +1317,138 @@ actual fun createCLAHE(clipLimit: Double, tileGridSize: Size): CLAHE =
         cvk_clahe_create(clipLimit, tileGridSize.width, tileGridSize.height)
             ?: throw OpenCVException("createCLAHE", lastNativeError()),
     )
+
+// =========================================================================
+// org.opencv.core parity: clustering / decomposition
+// =========================================================================
+
+actual fun kmeans(
+    data: Mat,
+    k: Int,
+    criteria: TermCriteria,
+    attempts: Int,
+    flags: Int,
+): KmeansResult {
+    // Labels are created here so callers receive a fresh Nx1 CV_32S matrix they
+    // own; centers are allocated by the shim. data is never closed.
+    val labels = zeros(data.rows, 1, CV_32S)
+    try {
+        memScoped {
+            val centers = alloc<CPointerVar<cvk_mat_t>>()
+            val compactness = allocArray<DoubleVar>(1)
+            cvk_kmeans(
+                data.nativeHandle(), k, labels.nativeHandle(),
+                criteria.type, criteria.maxCount, criteria.epsilon,
+                attempts, flags, centers.ptr, compactness,
+            )
+            return KmeansResult(
+                compactness[0], labels, nativeMat(centers.value, "kmeans"),
+            )
+        }
+    } catch (t: Throwable) {
+        labels.close()
+        throw t
+    }
+}
+
+actual fun svDecomp(src: Mat, flags: Int): Svd = memScoped {
+    val w = alloc<CPointerVar<cvk_mat_t>>()
+    val u = alloc<CPointerVar<cvk_mat_t>>()
+    val vt = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_svd_decomp(src.nativeHandle(), w.ptr, u.ptr, vt.ptr, flags)
+    Svd(
+        w = nativeMat(w.value, "svDecomp"),
+        u = nativeMat(u.value, "svDecomp"),
+        vt = nativeMat(vt.value, "svDecomp"),
+    )
+}
+
+actual fun svdBackSubst(w: Mat, u: Mat, vt: Mat, b: Mat): Mat = memScoped {
+    val dst = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_svd_backsubst(
+        w.nativeHandle(), u.nativeHandle(), vt.nativeHandle(),
+        b.nativeHandle(), dst.ptr,
+    )
+    nativeMat(dst.value, "svdBackSubst")
+}
+
+actual fun pcaCompute(data: Mat, maxComponents: Int): Pca = memScoped {
+    val mean = alloc<CPointerVar<cvk_mat_t>>()
+    val vectors = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_pca_compute(data.nativeHandle(), mean.ptr, vectors.ptr, maxComponents)
+    Pca(nativeMat(mean.value, "pcaCompute"), nativeMat(vectors.value, "pcaCompute"))
+}
+
+actual fun pcaComputeVariance(data: Mat, retainedVariance: Double): Pca = memScoped {
+    val mean = alloc<CPointerVar<cvk_mat_t>>()
+    val vectors = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_pca_compute_variance(data.nativeHandle(), mean.ptr, vectors.ptr, retainedVariance)
+    Pca(nativeMat(mean.value, "pcaComputeVariance"), nativeMat(vectors.value, "pcaComputeVariance"))
+}
+
+actual fun pcaProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat = memScoped {
+    val result = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_pca_project(data.nativeHandle(), mean.nativeHandle(), eigenvectors.nativeHandle(), result.ptr)
+    nativeMat(result.value, "pcaProject")
+}
+
+actual fun pcaBackProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat = memScoped {
+    val result = alloc<CPointerVar<cvk_mat_t>>()
+    cvk_pca_backproject(data.nativeHandle(), mean.nativeHandle(), eigenvectors.nativeHandle(), result.ptr)
+    nativeMat(result.value, "pcaBackProject")
+}
+
+actual fun mahalanobis(v1: Mat, v2: Mat, icovar: Mat): Double =
+    cvk_mahalanobis(v1.nativeHandle(), v2.nativeHandle(), icovar.nativeHandle())
+
+// =========================================================================
+// org.opencv.imgproc parity
+// =========================================================================
+
+actual fun cornerSubPix(
+    image: Mat,
+    corners: List<Point>,
+    winSize: Size,
+    zeroZone: Size,
+    criteria: TermCriteria,
+): List<Point> {
+    if (corners.isEmpty()) return emptyList()
+    // Corners travel as a single-contour wire buffer; refined points come back
+    // in the same flat layout.
+    val flat = ContourCodec.encode(listOf(corners))
+    return memScoped {
+        val outLen = alloc<size_tVar>()
+        val buffer = flat.asUByteArray().usePinned { pinned ->
+            cvk_corner_sub_pix(
+                image.nativeHandle(), pinned.addressOf(0), flat.size.convert<size_t>(),
+                winSize.width, winSize.height, zeroZone.width, zeroZone.height,
+                criteria.type, criteria.maxCount, criteria.epsilon, outLen.ptr,
+            ) ?: throw OpenCVException("cornerSubPix", lastNativeError())
+        }
+        try {
+            ContourCodec.decode(buffer.readBytes(outLen.value.toInt())).firstOrNull() ?: emptyList()
+        } finally {
+            cvk_free_buffer(buffer)
+        }
+    }
+}
+
+actual fun emd(signature1: Mat, signature2: Mat, distType: Int): Double =
+    cvk_emd(signature1.nativeHandle(), signature2.nativeHandle(), distType).toDouble()
+
+actual fun grabCut(image: Mat, mask: Mat, rect: Rect?, iterations: Int, mode: Int) {
+    // Stateless convenience wrapper: fresh 1x65 CV_64F models per call
+    // (13 * 5 GMM components), freed after.
+    val bgdModel = mat(1, 65, CV_64F)
+    val fgdModel = mat(1, 65, CV_64F)
+    try {
+        cvk_grab_cut(
+            image.nativeHandle(), mask.nativeHandle(),
+            rect?.x ?: 0, rect?.y ?: 0, rect?.width ?: 0, rect?.height ?: 0,
+            bgdModel.nativeHandle(), fgdModel.nativeHandle(), iterations, mode,
+        )
+    } finally {
+        bgdModel.close()
+        fgdModel.close()
+    }
+}

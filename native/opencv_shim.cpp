@@ -30,6 +30,7 @@
 #include "opencv_kmp.h"
 
 #include <opencv2/core.hpp>
+#include <opencv2/core/bindings_utils.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/geometry.hpp>
@@ -38,6 +39,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <sstream>
 #include <string>
 #include <vector>
 /** Opaque CLAHE handle backing cvk_clahe_t; defined at file scope so it
@@ -2228,6 +2230,330 @@ unsigned char *cvk_imencode_params(const char *ext, const cvk_mat_t *mat,
         std::memcpy(copy, buf.data(), buf.size());
         if (out_len != nullptr) *out_len = buf.size();
         return copy;
+    });
+}
+
+/* =========================================================================
+ * Official Java/Python SDK parity
+ * ========================================================================= */
+
+const char *cvk_mat_dump(const cvk_mat_t *mat) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> const char * {
+        // Mirrors Java Mat.dump(): shape header then every element value.
+        std::ostringstream os;
+        os << "mat(" << m->rows << ", " << m->cols << ", type=" << m->type()
+           << ") = [";
+        for (int r = 0; r < m->rows; ++r) {
+            os << "\n  ";
+            for (int c = 0; c < m->cols; ++c) {
+                for (int ch = 0; ch < m->channels(); ++ch) {
+                    os << ' ' << cvk_mat_get(mat, r, c, ch);
+                }
+            }
+        }
+        os << "\n]";
+        static std::string content;
+        content = os.str();
+        return content.c_str();
+    });
+}
+
+int cvk_mat_is_continuous(const cvk_mat_t *mat) {
+    const cv::Mat *m = require_const(mat);
+    return m != nullptr ? guarded([&] { return m->isContinuous() ? 1 : 0; }) : 0;
+}
+
+int cvk_mat_is_submatrix(const cvk_mat_t *mat) {
+    const cv::Mat *m = require_const(mat);
+    return m != nullptr ? guarded([&] { return m->isSubmatrix() ? 1 : 0; }) : 0;
+}
+
+cvk_mat_t *cvk_mat_adjust_roi(const cvk_mat_t *mat, int dtop, int dbottom,
+                              int dleft, int dright) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        // adjustROI mutates the header in place; work on a header copy that
+        // shares the same pixel buffer, mirroring the official semantics.
+        auto *view = new cv::Mat(*m);
+        view->adjustROI(dtop, dbottom, dleft, dright);
+        return reinterpret_cast<cvk_mat_t *>(view);
+    });
+}
+
+void cvk_mat_locate_roi(const cvk_mat_t *mat, int out[4]) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr || out == nullptr) return;
+    guarded([&]() -> void * {
+        cv::Size whole;
+        cv::Point offset;
+        m->locateROI(whole, offset);
+        out[0] = offset.x;
+        out[1] = offset.y;
+        out[2] = m->cols;
+        out[3] = m->rows;
+        return nullptr;
+    });
+}
+
+
+cvk_mat_t *cvk_mat_cross(const cvk_mat_t *a, const cvk_mat_t *b) {
+    const cv::Mat *ma = require_const(a);
+    const cv::Mat *mb = require_const(b);
+    if (ma == nullptr || mb == nullptr) return nullptr;
+    return guarded([&]() -> cvk_mat_t * {
+        auto *dst = new cv::Mat();
+        *dst = ma->cross(*mb);
+        return reinterpret_cast<cvk_mat_t *>(dst);
+    });
+}
+
+size_t cvk_mat_put_values(cvk_mat_t *mat, int row, int col,
+                          const double *values, size_t count) {
+    cv::Mat *m = require(mat);
+    if (m == nullptr || values == nullptr) return 0;
+    return guarded([&]() -> size_t {
+        const int chs = m->channels();
+        size_t written = 0;
+        // Element-wise along the row starting at (row, col), interleaving
+        // channels exactly like Java Mat.put(row, col, double[]); stops at
+        // the row end or once count values are consumed.
+        for (int c = col; c < m->cols && written < count; ++c) {
+            for (int ch = 0; ch < chs && written < count; ++ch, ++written) {
+                switch (m->depth()) {
+                    case CV_8U: write_at<uchar>(*m, row, c, ch, values[written]); break;
+                    case CV_8S: write_at<schar>(*m, row, c, ch, values[written]); break;
+                    case CV_16U: write_at<ushort>(*m, row, c, ch, values[written]); break;
+                    case CV_16S: write_at<short>(*m, row, c, ch, values[written]); break;
+                    case CV_32S: write_at<int>(*m, row, c, ch, values[written]); break;
+                    case CV_32F: write_at<float>(*m, row, c, ch, values[written]); break;
+                    case CV_64F: write_at<double>(*m, row, c, ch, values[written]); break;
+                    default: throw cv::Exception(cv::Error::StsUnsupportedFormat, "unsupported matrix depth", __func__, __FILE__, __LINE__);
+                }
+            }
+        }
+        return written;
+    });
+}
+
+size_t cvk_mat_get_values(const cvk_mat_t *mat, int row, int col,
+                          double *out, size_t count) {
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr || out == nullptr) return 0;
+    return guarded([&]() -> size_t {
+        const int chs = m->channels();
+        size_t read = 0;
+        // Mirror of put_values: element-wise along the row starting at
+        // (row, col), stopping at the row end.
+        for (int c = col; c < m->cols && read < count; ++c) {
+            for (int ch = 0; ch < chs && read < count; ++ch, ++read) {
+                switch (m->depth()) {
+                    case CV_8U: out[read] = read_at<uchar>(*m, row, c, ch); break;
+                    case CV_8S: out[read] = read_at<schar>(*m, row, c, ch); break;
+                    case CV_16U: out[read] = read_at<ushort>(*m, row, c, ch); break;
+                    case CV_16S: out[read] = read_at<short>(*m, row, c, ch); break;
+                    case CV_32S: out[read] = read_at<int>(*m, row, c, ch); break;
+                    case CV_32F: out[read] = read_at<float>(*m, row, c, ch); break;
+                    case CV_64F: out[read] = read_at<double>(*m, row, c, ch); break;
+                    default: throw cv::Exception(cv::Error::StsUnsupportedFormat, "unsupported matrix depth", __func__, __FILE__, __LINE__);
+                }
+            }
+        }
+        return read;
+    });
+}
+
+void cvk_kmeans(const cvk_mat_t *data, int k, cvk_mat_t *best_labels,
+                int crit_type, int crit_max_count, double crit_epsilon,
+                int attempts, int flags, cvk_mat_t **centers,
+                double *out_compactness) {
+    const cv::Mat *d = require_const(data);
+    cv::Mat *labels = require(best_labels);
+    if (d == nullptr || labels == nullptr || centers == nullptr) return;
+    *centers = nullptr;
+    guarded([&]() -> void * {
+        auto *ctr = new cv::Mat();
+        const double compactness =
+                cv::kmeans(*d, k, *labels,
+                           cv::TermCriteria(crit_type, crit_max_count, crit_epsilon),
+                           attempts, flags, *ctr);
+        *centers = reinterpret_cast<cvk_mat_t *>(ctr);
+        if (out_compactness != nullptr) *out_compactness = compactness;
+        return nullptr;
+    });
+}
+
+void cvk_svd_decomp(const cvk_mat_t *src, cvk_mat_t **w, cvk_mat_t **u,
+                    cvk_mat_t **vt, int flags) {
+    const cv::Mat *m = require_const(src);
+    if (m == nullptr || w == nullptr || u == nullptr || vt == nullptr) return;
+    *w = nullptr;
+    *u = nullptr;
+    *vt = nullptr;
+    guarded([&]() -> void * {
+        auto *wm = new cv::Mat();
+        auto *um = new cv::Mat();
+        auto *vtm = new cv::Mat();
+        cv::SVDecomp(*m, *wm, *um, *vtm, flags);
+        *w = reinterpret_cast<cvk_mat_t *>(wm);
+        *u = reinterpret_cast<cvk_mat_t *>(um);
+        *vt = reinterpret_cast<cvk_mat_t *>(vtm);
+        return nullptr;
+    });
+}
+
+void cvk_svd_backsubst(const cvk_mat_t *w, const cvk_mat_t *u,
+                       const cvk_mat_t *vt, const cvk_mat_t *b,
+                       cvk_mat_t **dst) {
+    const cv::Mat *mw = require_const(w);
+    const cv::Mat *mu = require_const(u);
+    const cv::Mat *mvt = require_const(vt);
+    const cv::Mat *mb = require_const(b);
+    if (mw == nullptr || mu == nullptr || mvt == nullptr || mb == nullptr ||
+        dst == nullptr) return;
+    *dst = nullptr;
+    guarded([&]() -> void * {
+        auto *out = new cv::Mat();
+        cv::SVBackSubst(*mw, *mu, *mvt, *mb, *out);
+        *dst = reinterpret_cast<cvk_mat_t *>(out);
+        return nullptr;
+    });
+}
+
+void cvk_pca_compute(const cvk_mat_t *data, cvk_mat_t **mean,
+                     cvk_mat_t **vectors, int max_components) {
+    const cv::Mat *d = require_const(data);
+    if (d == nullptr || mean == nullptr || vectors == nullptr) return;
+    *mean = nullptr;
+    *vectors = nullptr;
+    guarded([&]() -> void * {
+        auto *mu = new cv::Mat();
+        auto *vec = new cv::Mat();
+        cv::PCACompute(*d, *mu, *vec, max_components);
+        *mean = reinterpret_cast<cvk_mat_t *>(mu);
+        *vectors = reinterpret_cast<cvk_mat_t *>(vec);
+        return nullptr;
+    });
+}
+
+void cvk_pca_compute_variance(const cvk_mat_t *data, cvk_mat_t **mean,
+                              cvk_mat_t **vectors, double retained_variance) {
+    const cv::Mat *d = require_const(data);
+    if (d == nullptr || mean == nullptr || vectors == nullptr) return;
+    *mean = nullptr;
+    *vectors = nullptr;
+    guarded([&]() -> void * {
+        auto *mu = new cv::Mat();
+        auto *vec = new cv::Mat();
+        cv::PCACompute(*d, *mu, *vec, retained_variance);
+        *mean = reinterpret_cast<cvk_mat_t *>(mu);
+        *vectors = reinterpret_cast<cvk_mat_t *>(vec);
+        return nullptr;
+    });
+}
+
+void cvk_pca_project(const cvk_mat_t *data, const cvk_mat_t *mean,
+                     const cvk_mat_t *vectors, cvk_mat_t **result) {
+    const cv::Mat *d = require_const(data);
+    const cv::Mat *mu = require_const(mean);
+    const cv::Mat *vec = require_const(vectors);
+    if (d == nullptr || mu == nullptr || vec == nullptr || result == nullptr) return;
+    *result = nullptr;
+    guarded([&]() -> void * {
+        // Rebuild the PCA from caller-supplied mean and eigenvectors rather
+        // than recomputing them, matching Java Core.PCAProject.
+        cv::PCA pca;
+        pca.mean = *mu;
+        pca.eigenvectors = *vec;
+        auto *out = new cv::Mat();
+        pca.project(*d, *out);
+        *result = reinterpret_cast<cvk_mat_t *>(out);
+        return nullptr;
+    });
+}
+
+void cvk_pca_backproject(const cvk_mat_t *data, const cvk_mat_t *mean,
+                         const cvk_mat_t *vectors, cvk_mat_t **result) {
+    const cv::Mat *d = require_const(data);
+    const cv::Mat *mu = require_const(mean);
+    const cv::Mat *vec = require_const(vectors);
+    if (d == nullptr || mu == nullptr || vec == nullptr || result == nullptr) return;
+    *result = nullptr;
+    guarded([&]() -> void * {
+        cv::PCA pca;
+        pca.mean = *mu;
+        pca.eigenvectors = *vec;
+        auto *out = new cv::Mat();
+        pca.backProject(*d, *out);
+        *result = reinterpret_cast<cvk_mat_t *>(out);
+        return nullptr;
+    });
+}
+
+double cvk_mahalanobis(const cvk_mat_t *v1, const cvk_mat_t *v2,
+                       const cvk_mat_t *icovar) {
+    const cv::Mat *mv1 = require_const(v1);
+    const cv::Mat *mv2 = require_const(v2);
+    const cv::Mat *micovar = require_const(icovar);
+    if (mv1 == nullptr || mv2 == nullptr || micovar == nullptr) return -1.0;
+    return guarded([&] { return cv::Mahalanobis(*mv1, *mv2, *micovar); });
+}
+
+unsigned char *cvk_corner_sub_pix(const cvk_mat_t *image,
+                                  const unsigned char *flat, size_t len,
+                                  int win_w, int win_h,
+                                  int zero_w, int zero_h,
+                                  int crit_type, int crit_max_count,
+                                  double crit_epsilon, size_t *out_len) {
+    if (out_len != nullptr) *out_len = 0;
+    const cv::Mat *m = require_const(image);
+    if (m == nullptr) return nullptr;
+    return guarded([&]() -> unsigned char * {
+        std::vector<cv::Point> corners = single_contour(flat, len);
+        std::vector<cv::Point2f> pts;
+        pts.reserve(corners.size());
+        for (const cv::Point &pt : corners) {
+            pts.emplace_back(static_cast<float>(pt.x), static_cast<float>(pt.y));
+        }
+        cv::cornerSubPix(*m, pts, cv::Size(win_w, win_h), cv::Size(zero_w, zero_h),
+                         cv::TermCriteria(crit_type, crit_max_count, crit_epsilon));
+        // OpenCV Java keeps integer points: round the refined coordinates
+        // back to int pairs and re-encode the single contour buffer.
+        std::vector<cv::Point> refined;
+        refined.reserve(pts.size());
+        for (const cv::Point2f &pt : pts) {
+            refined.emplace_back(cvRound(pt.x), cvRound(pt.y));
+        }
+        return encode_contours({refined}, out_len);
+    });
+}
+
+float cvk_emd(const cvk_mat_t *signature1, const cvk_mat_t *signature2,
+              int dist_type) {
+    const cv::Mat *m1 = require_const(signature1);
+    const cv::Mat *m2 = require_const(signature2);
+    if (m1 == nullptr || m2 == nullptr) return -1.0f;
+    return guarded([&] { return cv::EMD(*m1, *m2, dist_type); });
+}
+
+void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
+                  int rx, int ry, int rw, int rh,
+                  cvk_mat_t *bgd_model, cvk_mat_t *fgd_model,
+                  int iterations, int mode) {
+    const cv::Mat *im = require_const(img);
+    cv::Mat *mk = require(mask);
+    cv::Mat *bgd = require(bgd_model);
+    cv::Mat *fgd = require(fgd_model);
+    if (im == nullptr || mk == nullptr || bgd == nullptr || fgd == nullptr) return;
+    guarded([&]() -> void * {
+        // The rect only participates in the INIT_WITH_RECT pass.
+        const cv::Rect rect = mode == cv::GC_INIT_WITH_RECT
+                                      ? cv::Rect(rx, ry, rw, rh)
+                                      : cv::Rect();
+        cv::grabCut(*im, *mk, rect, *bgd, *fgd, iterations, mode);
+        return nullptr;
     });
 }
 

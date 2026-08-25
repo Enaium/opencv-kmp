@@ -426,4 +426,65 @@ internal object Jni {
     external fun imwriteParams(path: String, mat: Long, params: IntArray): Boolean
     external fun imencodeParams(ext: String, mat: Long, params: IntArray): ByteArray
     external fun setRngSeed(seed: Long)
+
+    // ---- org.opencv.core.Mat parity
+
+    external fun matDump(mat: Long): String
+    external fun matIsContinuous(mat: Long): Boolean
+    external fun matIsSubmatrix(mat: Long): Boolean
+    external fun matAdjustROI(mat: Long, dtop: Int, dbottom: Int, dleft: Int, dright: Int): Long
+    external fun matLocateROI(mat: Long): IntArray
+    external fun matCross(a: Long, b: Long): Long
+    external fun matPutValues(mat: Long, row: Int, col: Int, values: DoubleArray): Int
+    external fun matGetValues(mat: Long, row: Int, col: Int, values: DoubleArray): Int
+
+    // ---- core: clustering / decomposition (Core parity)
+
+    external fun kmeans(
+        data: Long,
+        k: Int,
+        critType: Int,
+        critMax: Int,
+        critEps: Double,
+        attempts: Int,
+        flags: Int,
+        labels: Long,
+        compactnessOut: DoubleArray,
+    ): Long
+
+    external fun svdDecomp(src: Long, flags: Int): LongArray
+    external fun svdBackSubst(w: Long, u: Long, vt: Long, b: Long): Long
+    external fun pcaCompute(data: Long, maxComponents: Int): LongArray
+    external fun pcaComputeVariance(data: Long, retainedVariance: Double): LongArray
+    external fun pcaProject(data: Long, mean: Long, vectors: Long): Long
+    external fun pcaBackProject(data: Long, mean: Long, vectors: Long): Long
+    external fun mahalanobis(v1: Long, v2: Long, icovar: Long): Double
+
+    // ---- imgproc parity additions
+
+    external fun cornerSubPixBytes(
+        image: Long,
+        flat: ByteArray,
+        winW: Int,
+        winH: Int,
+        zeroW: Int,
+        zeroH: Int,
+        critType: Int,
+        critMax: Int,
+        critEps: Double,
+    ): ByteArray
+
+    external fun emd(sig1: Long, sig2: Long, distType: Int): Double
+    external fun grabCut(
+        img: Long,
+        mask: Long,
+        rx: Int,
+        ry: Int,
+        rw: Int,
+        rh: Int,
+        bgdModel: Long,
+        fgdModel: Long,
+        iters: Int,
+        mode: Int,
+    )
 }

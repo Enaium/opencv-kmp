@@ -80,6 +80,21 @@ data class MinMaxLoc(
 /** Integer pixel coordinate (`cv::Point`). */
 data class Point(val x: Int, val y: Int)
 
+/** Algorithm termination criteria (`cv::TermCriteria`). */
+data class TermCriteria(
+    val type: Int,
+    val maxCount: Int,
+    val epsilon: Double,
+) {
+    companion object {
+        fun count(maxCount: Int): TermCriteria = TermCriteria(TermCriteriaTypes.COUNT, maxCount, 0.0)
+
+        fun epsilon(epsilonValue: Double, maxCount: Int = 1000): TermCriteria =
+            TermCriteria(TermCriteriaTypes.MAX_ITER or TermCriteriaTypes.EPS, maxCount, epsilonValue)
+    }
+}
+
+
 /** Bounding rotated rectangle from [minAreaRect]; angle in degrees. */
 data class RotatedRect(
     val centerX: Double,

@@ -423,3 +423,24 @@ object ImwriteParams {
     const val PNG_STRATEGY: Int = 17
     const val PNG_BILEVEL: Int = 18
 }
+
+/** OpenCV's `cv::TermCriteria` type bits. */
+object TermCriteriaTypes {
+    const val COUNT: Int = 1
+    const val MAX_ITER: Int = 1
+    const val EPS: Int = 2
+}
+
+/** OpenCV's `cv::KmeansFlags`. */
+object KmeansFlags {
+    const val RANDOM_CENTERS: Int = 0
+    const val USE_INITIAL_LABELS: Int = 1
+    const val PP_CENTERS: Int = 2
+}
+
+/** OpenCV's `cv::GrabCutModes`. */
+object GrabCutModes {
+    const val INIT_WITH_RECT: Int = 0
+    const val INIT_WITH_MASK: Int = 1
+    const val EVAL: Int = 2
+}

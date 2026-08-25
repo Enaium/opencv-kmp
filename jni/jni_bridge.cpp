@@ -1451,4 +1451,190 @@ JNIEXPORT void JNICALL
 Java_cn_enaium_opencv_Jni_setRngSeed(JNIEnv *, jobject, jlong seed) {
     cvk_set_rng_seed(static_cast<unsigned long long>(seed));
 }
+
+// --------------------------------------- org.opencv.core.Mat parity
+
+JNIEXPORT jstring JNICALL
+Java_cn_enaium_opencv_Jni_matDump(JNIEnv *env, jobject, jlong mat) {
+    const char *text = cvk_mat_dump(as_mat(mat));
+    return text != nullptr ? env->NewStringUTF(text) : nullptr;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_cn_enaium_opencv_Jni_matIsContinuous(JNIEnv *, jobject, jlong mat) {
+    return cvk_mat_is_continuous(as_mat(mat)) != 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_cn_enaium_opencv_Jni_matIsSubmatrix(JNIEnv *, jobject, jlong mat) {
+    return cvk_mat_is_submatrix(as_mat(mat)) != 0 ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_matAdjustROI(JNIEnv *, jobject, jlong mat,
+                                       jint dtop, jint dbottom,
+                                       jint dleft, jint dright) {
+    return as_handle(cvk_mat_adjust_roi(as_mat(mat), dtop, dbottom, dleft, dright));
+}
+
+JNIEXPORT jintArray JNICALL
+Java_cn_enaium_opencv_Jni_matLocateROI(JNIEnv *env, jobject, jlong mat) {
+    int out[4] = {0, 0, 0, 0};
+    cvk_mat_locate_roi(as_mat(mat), out);
+    jintArray result = env->NewIntArray(4);
+    if (result == nullptr) return nullptr;
+    env->SetIntArrayRegion(result, 0, 4, out);
+    return result;
+}
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_matCross(JNIEnv *, jobject, jlong a, jlong b) {
+    return as_handle(cvk_mat_cross(as_mat(a), as_mat(b)));
+}
+
+JNIEXPORT jint JNICALL
+Java_cn_enaium_opencv_Jni_matPutValues(JNIEnv *env, jobject, jlong mat,
+                                       jint row, jint col, jdoubleArray values) {
+    if (values == nullptr) return 0;
+    const jsize count = env->GetArrayLength(values);
+    if (count <= 0) return 0;
+    jdouble *elements = env->GetDoubleArrayElements(values, nullptr);
+    if (elements == nullptr) return 0;
+    const size_t written = cvk_mat_put_values(as_mat(mat), row, col, elements,
+                                              static_cast<size_t>(count));
+    env->ReleaseDoubleArrayElements(values, elements, JNI_ABORT);
+    return static_cast<jint>(written);
+}
+
+JNIEXPORT jint JNICALL
+Java_cn_enaium_opencv_Jni_matGetValues(JNIEnv *env, jobject, jlong mat,
+                                       jint row, jint col, jdoubleArray values) {
+    if (values == nullptr) return 0;
+    const jsize count = env->GetArrayLength(values);
+    if (count <= 0) return 0;
+    std::vector<jdouble> buffer(static_cast<size_t>(count), 0.0);
+    const size_t read = cvk_mat_get_values(as_mat(mat), row, col, buffer.data(),
+                                           static_cast<size_t>(count));
+    if (read > 0) {
+        env->SetDoubleArrayRegion(values, 0, static_cast<jsize>(read), buffer.data());
+    }
+    return static_cast<jint>(read);
+}
+
+// ------------------------------------------------- core: clustering / decomposition
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_kmeans(JNIEnv *env, jobject, jlong data, jint k,
+                                 jint crit_type, jint crit_max_count,
+                                 jdouble crit_epsilon, jint attempts, jint flags,
+                                 jlong labels, jdoubleArray compactness_out) {
+    cvk_mat_t *centers = nullptr;
+    double compactness = 0.0;
+    cvk_kmeans(as_mat(data), k, as_mat(labels),
+               crit_type, crit_max_count, crit_epsilon, attempts, flags,
+               &centers, &compactness);
+    if (compactness_out != nullptr && env->GetArrayLength(compactness_out) > 0) {
+        const jdouble value = compactness;
+        env->SetDoubleArrayRegion(compactness_out, 0, 1, &value);
+    }
+    return as_handle(centers);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_cn_enaium_opencv_Jni_svdDecomp(JNIEnv *env, jobject, jlong src, jint flags) {
+    cvk_mat_t *w = nullptr;
+    cvk_mat_t *u = nullptr;
+    cvk_mat_t *vt = nullptr;
+    cvk_svd_decomp(as_mat(src), &w, &u, &vt, flags);
+    cvk_mat_t *triple[3] = {w, u, vt};
+    return as_handle_array(env, triple, 3);
+}
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_svdBackSubst(JNIEnv *, jobject, jlong w, jlong u,
+                                       jlong vt, jlong b) {
+    cvk_mat_t *dst = nullptr;
+    cvk_svd_backsubst(as_mat(w), as_mat(u), as_mat(vt), as_mat(b), &dst);
+    return as_handle(dst);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_cn_enaium_opencv_Jni_pcaCompute(JNIEnv *env, jobject, jlong data,
+                                     jint max_components) {
+    cvk_mat_t *mean = nullptr;
+    cvk_mat_t *vectors = nullptr;
+    cvk_pca_compute(as_mat(data), &mean, &vectors, max_components);
+    cvk_mat_t *pair[2] = {mean, vectors};
+    return as_handle_array(env, pair, 2);
+}
+
+JNIEXPORT jlongArray JNICALL
+Java_cn_enaium_opencv_Jni_pcaComputeVariance(JNIEnv *env, jobject, jlong data,
+                                             jdouble retained_variance) {
+    cvk_mat_t *mean = nullptr;
+    cvk_mat_t *vectors = nullptr;
+    cvk_pca_compute_variance(as_mat(data), &mean, &vectors, retained_variance);
+    cvk_mat_t *pair[2] = {mean, vectors};
+    return as_handle_array(env, pair, 2);
+}
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_pcaProject(JNIEnv *, jobject, jlong data, jlong mean,
+                                     jlong vectors) {
+    cvk_mat_t *result = nullptr;
+    cvk_pca_project(as_mat(data), as_mat(mean), as_mat(vectors), &result);
+    return as_handle(result);
+}
+
+JNIEXPORT jlong JNICALL
+Java_cn_enaium_opencv_Jni_pcaBackProject(JNIEnv *, jobject, jlong data, jlong mean,
+                                         jlong vectors) {
+    cvk_mat_t *result = nullptr;
+    cvk_pca_backproject(as_mat(data), as_mat(mean), as_mat(vectors), &result);
+    return as_handle(result);
+}
+
+JNIEXPORT jdouble JNICALL
+Java_cn_enaium_opencv_Jni_mahalanobis(JNIEnv *, jobject, jlong v1, jlong v2,
+                                      jlong icovar) {
+    return cvk_mahalanobis(as_mat(v1), as_mat(v2), as_mat(icovar));
+}
+
+// ------------------------------------------------- imgproc: features / segmentation
+
+JNIEXPORT jbyteArray JNICALL
+Java_cn_enaium_opencv_Jni_cornerSubPixBytes(JNIEnv *env, jobject, jlong image,
+                                            jbyteArray flat,
+                                            jint win_w, jint win_h,
+                                            jint zero_w, jint zero_h,
+                                            jint crit_type, jint crit_max_count,
+                                            jdouble crit_epsilon) {
+    if (flat == nullptr) return nullptr;
+    const jsize flat_len = env->GetArrayLength(flat);
+    if (flat_len < 4) return nullptr;
+    jbyte *flat_ptr = env->GetByteArrayElements(flat, nullptr);
+    if (flat_ptr == nullptr) return nullptr;
+    size_t out_len = 0;
+    unsigned char *buffer = cvk_corner_sub_pix(
+        as_mat(image), reinterpret_cast<const unsigned char *>(flat_ptr),
+        static_cast<size_t>(flat_len), win_w, win_h, zero_w, zero_h,
+        crit_type, crit_max_count, crit_epsilon, &out_len);
+    env->ReleaseByteArrayElements(flat, flat_ptr, JNI_ABORT);
+    return take_buffer(env, buffer, out_len);
+}
+
+JNIEXPORT jdouble JNICALL
+Java_cn_enaium_opencv_Jni_emd(JNIEnv *, jobject, jlong sig1, jlong sig2,
+                              jint dist_type) {
+    return static_cast<jdouble>(cvk_emd(as_mat(sig1), as_mat(sig2), dist_type));
+}
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_grabCut(JNIEnv *, jobject, jlong img, jlong mask,
+                                  jint rx, jint ry, jint rw, jint rh,
+                                  jlong bgd_model, jlong fgd_model,
+                                  jint iters, jint mode) {
+    cvk_grab_cut(as_mat(img), as_mat(mask), rx, ry, rw, rh,
+                 as_mat(bgd_model), as_mat(fgd_model), iters, mode);
+}
 } /* extern "C" */

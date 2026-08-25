@@ -669,6 +669,31 @@ internal class JvmMat internal constructor(
         )
     }
 
+    // ---- org.opencv.core.Mat parity ------------------------------------------
+
+    override fun adjustROI(dtop: Int, dbottom: Int, dleft: Int, dright: Int): Mat =
+        jvmMat(Jni.matAdjustROI(check(), dtop, dbottom, dleft, dright), "adjustROI")
+
+    override fun locateROI(): Pair<Point, Size> {
+        val out = Jni.matLocateROI(check())
+        return Point(out[0], out[1]) to Size(out[2], out[3])
+    }
+
+    override val isContinuous: Boolean get() = Jni.matIsContinuous(check())
+
+    override val isSubmatrix: Boolean get() = Jni.matIsSubmatrix(check())
+
+    override infix fun cross(other: Mat): Mat =
+        jvmMat(Jni.matCross(check(), rawOf(other)), "cross")
+
+    override fun dump(): String = Jni.matDump(check())
+
+    override fun put(row: Int, col: Int, values: DoubleArray): Int =
+        Jni.matPutValues(check(), row, col, values)
+
+    override fun get(row: Int, col: Int, values: DoubleArray): Int =
+        Jni.matGetValues(check(), row, col, values)
+
     override fun close() {
         val handle = ptr
         if (handle == 0L) return
@@ -875,3 +900,90 @@ actual fun imwriteParams(path: String, mat: Mat, params: List<Int>): Boolean =
     Jni.imwriteParams(path, handleOf(mat), params.toIntArray())
 
 actual fun getOptimalDftSize(size: Int): Int = Jni.getOptimalDftSize(size)
+
+// =========================================================================
+// org.opencv.core / imgproc parity
+// =========================================================================
+
+actual fun kmeans(
+    data: Mat,
+    k: Int,
+    criteria: TermCriteria,
+    attempts: Int,
+    flags: Int,
+): KmeansResult {
+    zeros(data.rows, 1, CV_32S).use { labels ->
+        val compactness = DoubleArray(1)
+        val centersHandle = Jni.kmeans(
+            handleOf(data), k, criteria.type, criteria.maxCount, criteria.epsilon,
+            attempts, flags, handleOf(labels), compactness,
+        )
+        return KmeansResult(compactness[0], labels.clone(), jvmMat(centersHandle, "kmeans"))
+    }
+}
+
+actual fun svDecomp(src: Mat, flags: Int): Svd {
+    val parts = Jni.svdDecomp(handleOf(src), flags)
+    return Svd(jvmMat(parts[0], "svd.w"), jvmMat(parts[1], "svd.u"), jvmMat(parts[2], "svd.vt"))
+}
+
+actual fun svdBackSubst(w: Mat, u: Mat, vt: Mat, b: Mat): Mat =
+    jvmMat(Jni.svdBackSubst(handleOf(w), handleOf(u), handleOf(vt), handleOf(b)), "svdBackSubst")
+
+actual fun pcaCompute(data: Mat, maxComponents: Int): Pca {
+    val parts = Jni.pcaCompute(handleOf(data), maxComponents)
+    return Pca(jvmMat(parts[0], "pca.mean"), jvmMat(parts[1], "pca.vectors"))
+}
+
+actual fun pcaComputeVariance(data: Mat, retainedVariance: Double): Pca {
+    val parts = Jni.pcaComputeVariance(handleOf(data), retainedVariance)
+    return Pca(jvmMat(parts[0], "pca.mean"), jvmMat(parts[1], "pca.vectors"))
+}
+
+actual fun pcaProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat =
+    jvmMat(Jni.pcaProject(handleOf(data), handleOf(mean), handleOf(eigenvectors)), "pcaProject")
+
+actual fun pcaBackProject(data: Mat, mean: Mat, eigenvectors: Mat): Mat =
+    jvmMat(Jni.pcaBackProject(handleOf(data), handleOf(mean), handleOf(eigenvectors)), "pcaBackProject")
+
+actual fun mahalanobis(v1: Mat, v2: Mat, icovar: Mat): Double =
+    Jni.mahalanobis(handleOf(v1), handleOf(v2), handleOf(icovar))
+
+actual fun cornerSubPix(
+    image: Mat,
+    corners: List<Point>,
+    winSize: Size,
+    zeroZone: Size,
+    criteria: TermCriteria,
+): List<Point> {
+    require(corners.isNotEmpty()) { "cornerSubPix needs at least one point" }
+    val refined = Jni.cornerSubPixBytes(
+        handleOf(image), ContourCodec.encode(listOf(corners)),
+        winSize.width, winSize.height, zeroZone.width, zeroZone.height,
+        criteria.type, criteria.maxCount, criteria.epsilon,
+    )
+    return ContourCodec.decode(refined).firstOrNull() ?: corners
+}
+
+actual fun emd(signature1: Mat, signature2: Mat, distType: Int): Double =
+    Jni.emd(handleOf(signature1), handleOf(signature2), distType)
+
+actual fun grabCut(
+    image: Mat,
+    mask: Mat,
+    rect: Rect?,
+    iterations: Int,
+    mode: Int,
+) {
+        mat(1, 65, MatType.CV_64FC1).use { bgdModel ->
+            mat(1, 65, MatType.CV_64FC1).use { fgdModel ->
+            val r = rect ?: Rect(0, 0, 0, 0)
+            Jni.grabCut(
+                handleOf(image), handleOf(mask),
+                r.x, r.y, r.width, r.height,
+                handleOf(bgdModel), handleOf(fgdModel),
+                iterations, mode,
+            )
+        }
+    }
+}

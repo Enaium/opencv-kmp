@@ -688,6 +688,106 @@ int cvk_imwrite_params(const char *filename, const cvk_mat_t *mat,
 unsigned char *cvk_imencode_params(const char *ext, const cvk_mat_t *mat,
                                    const int *params, size_t params_len,
                                    size_t *out_len);
+/* =========================================================================
+ * Official Java/Python SDK parity surface
+ * =========================================================================
+ */
+
+/* ---- Mat members (org.opencv.core.Mat parity) ---- */
+
+/** Debug dump of the matrix content (Java Mat.dump). Static buffer. */
+const char *cvk_mat_dump(const cvk_mat_t *mat);
+
+int cvk_mat_is_continuous(const cvk_mat_t *mat);
+
+/** Whether the matrix is a ROI view of a larger one. */
+int cvk_mat_is_submatrix(const cvk_mat_t *mat);
+
+/** Java Mat.adjustROI; returns the adjusted sharing view. */
+cvk_mat_t *cvk_mat_adjust_roi(const cvk_mat_t *mat, int dtop, int dbottom,
+                              int dleft, int dright);
+
+/** Java Mat.locateROI; writes x,y (offset) then width,height. */
+void cvk_mat_locate_roi(const cvk_mat_t *mat, int out[4]);
+
+/** 3-element cross product. */
+cvk_mat_t *cvk_mat_cross(const cvk_mat_t *a, const cvk_mat_t *b);
+
+/**
+ * Java Mat.put(row, col, double[]): writes count elements starting at
+ * (row, col) running along the row; returns elements written.
+ */
+size_t cvk_mat_put_values(cvk_mat_t *mat, int row, int col,
+                          const double *values, size_t count);
+
+/** Java Mat.get(row, col, double[]); returns elements read into out. */
+size_t cvk_mat_get_values(const cvk_mat_t *mat, int row, int col,
+                          double *out, size_t count);
+
+/* ---- core: clustering / decomposition (Core parity) ---- */
+
+/**
+ * cv::kmeans. bestLabels is an Nx1 CV_32S in/out array (zeros for fresh);
+ * criteria = (type, maxCount, epsilon). Writes centers handle and the
+ * compactness into out_compactness.
+ */
+void cvk_kmeans(const cvk_mat_t *data, int k, cvk_mat_t *best_labels,
+                int crit_type, int crit_max_count, double crit_epsilon,
+                int attempts, int flags, cvk_mat_t **centers,
+                double *out_compactness);
+
+void cvk_svd_decomp(const cvk_mat_t *src, cvk_mat_t **w, cvk_mat_t **u,
+                    cvk_mat_t **vt, int flags);
+
+/** dst = w*u'*vt*b solved back-substituting the decomposition. */
+void cvk_svd_backsubst(const cvk_mat_t *w, const cvk_mat_t *u,
+                       const cvk_mat_t *vt, const cvk_mat_t *b,
+                       cvk_mat_t **dst);
+
+/** PCA over rows of data; mean is Nx? overwritten output. */
+void cvk_pca_compute(const cvk_mat_t *data, cvk_mat_t **mean,
+                     cvk_mat_t **vectors, int max_components);
+
+/** PCA keeping the given fraction of variance. */
+void cvk_pca_compute_variance(const cvk_mat_t *data, cvk_mat_t **mean,
+                              cvk_mat_t **vectors, double retained_variance);
+
+void cvk_pca_project(const cvk_mat_t *data, const cvk_mat_t *mean,
+                     const cvk_mat_t *vectors, cvk_mat_t **result);
+
+void cvk_pca_backproject(const cvk_mat_t *data, const cvk_mat_t *mean,
+                         const cvk_mat_t *vectors, cvk_mat_t **result);
+
+double cvk_mahalanobis(const cvk_mat_t *v1, const cvk_mat_t *v2,
+                       const cvk_mat_t *icovar);
+
+/* ---- imgproc (Imgproc parity) ---- */
+
+/**
+ * Refines corner coordinates to sub-pixel accuracy. corners travel as a
+ * single-contour wire buffer (Nx1 CV_32FC2 semantics); refined points come
+ * back as float x,y pairs in the same flat layout.
+ */
+unsigned char *cvk_corner_sub_pix(const cvk_mat_t *image,
+                                  const unsigned char *flat, size_t len,
+                                  int win_w, int win_h,
+                                  int zero_w, int zero_h,
+                                  int crit_type, int crit_max_count,
+                                  double crit_epsilon, size_t *out_len);
+
+/** Earth Mover's Distance between two signatures (DistTypes or user+cost). */
+float cvk_emd(const cvk_mat_t *signature1, const cvk_mat_t *signature2,
+              int dist_type);
+
+/**
+ * cv::grabCut. mask is CV_8UC1 in/out; rect used when mode==0 (WITH_RECT);
+ * models are 1x13 CV_64F buffers created empty by the caller.
+ */
+void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
+                  int rx, int ry, int rw, int rh,
+                  cvk_mat_t *bgd_model, cvk_mat_t *fgd_model,
+                  int iterations, int mode);
+
 #ifdef __cplusplus
 }
 #endif

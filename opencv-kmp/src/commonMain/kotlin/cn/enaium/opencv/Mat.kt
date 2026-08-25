@@ -519,5 +519,37 @@ interface Mat : AutoCloseable {
 
     fun polylines(polylines: List<List<Point>>, closed: Boolean, color: Scalar, thickness: Int = LineTypes.LINE_8)
 
+    // ---- org.opencv.core.Mat parity ------------------------------------------
+
+    /** ROI view alias matching the official `Mat.submat`. */
+    fun submat(rect: Rect): Mat = roi(rect)
+
+    /** Grows/shrinks this ROI by the given deltas, like `Mat.adjustROI`. */
+    fun adjustROI(dtop: Int, dbottom: Int, dleft: Int, dright: Int): Mat
+
+    /** Offset and size of this ROI inside its parent. */
+    fun locateROI(): Pair<Point, Size>
+
+    val isContinuous: Boolean
+    val isSubmatrix: Boolean
+
+    /** 3-element cross product (1x3/3x1 CV_32FC1). */
+    infix fun cross(other: Mat): Mat
+
+    /** Content dump mirroring the official `Mat.dump()`. */
+    fun dump(): String
+
+    /**
+     * Writes [values] starting at ([row], [col]) running along the row,
+     * exactly like the official typed `Mat.put`; returns elements written.
+     */
+    fun put(row: Int, col: Int, values: DoubleArray): Int
+
+    /**
+     * Reads at most [values].size elements starting at ([row], [col]) into
+     * [values], like the official typed `Mat.get`; returns elements read.
+     */
+    fun get(row: Int, col: Int, values: DoubleArray): Int
+
     override fun close()
 }
