@@ -178,13 +178,7 @@ kotlin {
                                     "libjpeg-turbo",
                                     "libpng",
                                     "zlib",
-                                ) +
-                                // GNU C++ runtime for cross-built targets
-                                (when (targetName) {
-                                    "linuxArm64" -> listOf("stdc++_linux_arm64")
-                                    "mingwX64" -> listOf("stdc++_mingw_x64")
-                                    else -> emptyList()
-                                })
+                                )
                         extraOpts(
                             listOf("-libraryPath", outputDir.absolutePath) +
                                     embeddedLibs.flatMap { listOf("-staticLibrary", "lib$it.a") }
@@ -327,8 +321,6 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_C_FLAGS=-mno-outline-atomics",
             "-DCMAKE_CXX_FLAGS=-mno-outline-atomics",
             "-DCMAKE_ASM_COMPILER=aarch64-linux-gnu-gcc",
-            // the klib embeds a full libstdc++; drop the compat shims
-            "-DCVK_SKIP_STDCPP_SHIM=ON",
         ),
     )
     // Cross-compile the MinGW archive with the x86_64-w64-mingw32 toolchain
@@ -342,8 +334,6 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
             "-DWITH_KLEIDICV=OFF",
             "-DWITH_CAROTENE=OFF",
-            // the klib embeds a full libstdc++; drop the compat shims
-            "-DCVK_SKIP_STDCPP_SHIM=ON",
         ),
     )
 }

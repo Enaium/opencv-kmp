@@ -117,13 +117,7 @@ add_subdirectory("${OPENCV_SOURCE_DIR}" opencv-build EXCLUDE_FROM_ALL)
 # ---------------------------------------------------------------------------
 # cvk shim
 # ---------------------------------------------------------------------------
-set(CVK_SKIP_STDCPP_SHIM OFF CACHE BOOL
-        "Drop the libstdc++ compat shims (used when the klib embeds a full modern libstdc++ archive)")
-
 add_library(cvk_shim STATIC opencv_shim.cpp glibc_compat.c stdcpp_compat.cpp)
-if(CVK_SKIP_STDCPP_SHIM)
-    target_compile_definitions(cvk_shim PRIVATE CVK_SKIP_STDCPP_SHIM)
-endif()
 target_include_directories(cvk_shim PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/include"
         # Public umbrella headers and per-module headers straight from the
@@ -220,54 +214,5 @@ foreach(_n libjpeg-turbo libpng zlib)
     list(APPEND CVK_COPIED_LIBS "${_out}")
 endforeach()
 
-# GNU C++ runtime for cross-built targets: Kotlin/Native executables have no
-# libstdc++ of their own, and the OpenCV archives are GNU C++ objects. The
-# static archive resolves lazily, so its embed position is safe.
-#
-# Discovery must be deterministic: fail the configure with the searched
-# roots printed rather than silently skipping (the Gradle embed list would
-# then reference a file that never appears).
-macro(cvk_find_cross_stdcpp _out_var _sysroot _gcc_cross_root)
-    set(${_out_var} "")
-    file(GLOB_RECURSE _candidates
-            "${_sysroot}/*.a"
-            "${_gcc_cross_root}/*.a")
-    list(FILTER _candidates INCLUDE REGEX "libstdc\\+\\+\\.a$")
-    if(_candidates)
-        list(GET _candidates 0 ${_out_var})
-    endif()
-    message(STATUS "CVK cross libstdc++ (${_sysroot}): ${${_out_var}}")
-    if(NOT ${_out_var})
-        file(GLOB _seen_a "${_sysroot}/**/*.a")
-        message(STATUS "CVK archives seen under ${_sysroot}: ${_seen_a}")
-        file(GLOB _seen_cross "${_gcc_cross_root}/*/*.a")
-        message(STATUS "CVK archives seen under ${_gcc_cross_root}: ${_seen_cross}")
-        message(FATAL_ERROR
-                "CVK: libstdc++.a not found for cross runtime embedding "
-                "(searched ${_sysroot} and ${_gcc_cross_root})")
-    endif()
-endmacro()
-
-if(EXISTS "/usr/aarch64-linux-gnu")
-    cvk_find_cross_stdcpp(CVK_STDCPP_ARM64_SRC
-            "/usr/aarch64-linux-gnu" "/usr/lib/gcc-cross/aarch64-linux-gnu")
-    set(_out "${CVK_OUTPUT_DIR}/libstdc++_linux_arm64.a")
-    add_custom_command(OUTPUT "${_out}"
-            COMMAND "${CMAKE_COMMAND}" -E copy "${CVK_STDCPP_ARM64_SRC}" "${_out}"
-            DEPENDS "${CVK_STDCPP_ARM64_SRC}"
-            VERBATIM)
-    list(APPEND CVK_COPIED_LIBS "${_out}")
-endif()
-
-if(EXISTS "/usr/x86_64-w64-mingw32")
-    cvk_find_cross_stdcpp(CVK_STDCPP_MINGW_SRC
-            "/usr/x86_64-w64-mingw32" "/usr/lib/gcc/x86_64-w64-mingw32")
-    set(_out "${CVK_OUTPUT_DIR}/libstdc++_mingw_x64.a")
-    add_custom_command(OUTPUT "${_out}"
-            COMMAND "${CMAKE_COMMAND}" -E copy "${CVK_STDCPP_MINGW_SRC}" "${_out}"
-            DEPENDS "${CVK_STDCPP_MINGW_SRC}"
-            VERBATIM)
-    list(APPEND CVK_COPIED_LIBS "${_out}")
-endif()
 
 add_custom_target(opencv_kmp ALL DEPENDS ${CVK_COPIED_LIBS})

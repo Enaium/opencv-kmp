@@ -33,10 +33,10 @@
 #include <new>
 #include <sstream>
 
-// Targets whose klib embeds the full modern libstdc++ archive (see the
-// CVK_SKIP_STDCPP_SHIM define in CMakeLists.txt) must not duplicate the
-// helper symbols the real archive already provides.
-#ifndef CVK_SKIP_STDCPP_SHIM
+// Kotlin/Native sysroots ship a libstdc++ older than the host GCC that
+// compiled OpenCV; explicitly instancing the stream entry points the
+// libraries reference makes the host toolchain emit strong local
+// definitions so nothing has to come from the ancient copy.
 
 // GCC 12+ inline helper; sysroots whose libstdc++ predates it (Kotlin/Native
 // Linux and MinGW) need a strong definition. The Android NDK ships its own,
@@ -47,10 +47,11 @@ namespace std {
 } // namespace std
 #endif
 
-#if defined(__linux__) && !defined(__ANDROID__)
+#if !defined(__ANDROID__)
 
 template class std::basic_stringstream<char, std::char_traits<char>, std::allocator<char>>;
+template class std::basic_ostringstream<char, std::char_traits<char>, std::allocator<char>>;
+template class std::basic_istringstream<char, std::char_traits<char>, std::allocator<char>>;
 
-#endif /* __linux__ && !__ANDROID__ */
 
-#endif /* CVK_SKIP_STDCPP_SHIM */
+#endif /* !__ANDROID__ */
