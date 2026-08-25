@@ -178,7 +178,14 @@ kotlin {
                                     "libjpeg-turbo",
                                     "libpng",
                                     "zlib",
-                                )
+                                ) +
+                                // mingwX64: K/N's bundled GNU runtime is too
+                                // old for the host-cross-compiled archives
+                                (if (targetName == "mingwX64") {
+                                    listOf("stdc++_mingw_x64")
+                                } else {
+                                    emptyList()
+                                })
                         extraOpts(
                             listOf("-libraryPath", outputDir.absolutePath) +
                                     embeddedLibs.flatMap { listOf("-staticLibrary", "lib$it.a") }
@@ -334,6 +341,8 @@ if (hostOs.isMacOsX) {
             "-DCMAKE_CXX_COMPILER=x86_64-w64-mingw32-g++",
             "-DWITH_KLEIDICV=OFF",
             "-DWITH_CAROTENE=OFF",
+            // the klib embeds the full GNU runtime; drop the compat shims
+            "-DCVK_SKIP_STDCPP_SHIM=ON",
         ),
     )
 }

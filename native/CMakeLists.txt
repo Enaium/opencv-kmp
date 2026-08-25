@@ -117,7 +117,13 @@ add_subdirectory("${OPENCV_SOURCE_DIR}" opencv-build EXCLUDE_FROM_ALL)
 # ---------------------------------------------------------------------------
 # cvk shim
 # ---------------------------------------------------------------------------
+set(CVK_SKIP_STDCPP_SHIM OFF CACHE BOOL
+        "Drop the libstdc++ compat shims (mingwX64 embeds the full GNU runtime)")
+
 add_library(cvk_shim STATIC opencv_shim.cpp glibc_compat.c stdcpp_compat.cpp)
+if(CVK_SKIP_STDCPP_SHIM)
+    target_compile_definitions(cvk_shim PRIVATE CVK_SKIP_STDCPP_SHIM)
+endif()
 target_include_directories(cvk_shim PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/include"
         # Public umbrella headers and per-module headers straight from the
@@ -213,6 +219,29 @@ foreach(_n libjpeg-turbo libpng zlib)
             VERBATIM)
     list(APPEND CVK_COPIED_LIBS "${_out}")
 endforeach()
+
+# MinGW klibs: Kotlin/Native's bundled libstdc++ for gnu_x86_64_windows
+# predates the host cross-GCC, so the real static runtime travels with the
+# klib (ios_base_library_init, __gthr_win32_* helpers, stream symbols).
+if(WIN32 OR EXISTS "/usr/x86_64-w64-mingw32")
+    set(CVK_STDCPP_MINGW_SRC "")
+    if(EXISTS "/usr/x86_64-w64-mingw32/lib/libstdc++.a")
+        set(CVK_STDCPP_MINGW_SRC "/usr/x86_64-w64-mingw32/lib/libstdc++.a")
+    else()
+        file(GLOB_RECURSE _mingw_stdcpp
+                "/usr/x86_64-w64-mingw32/*.a"
+                "/usr/lib/gcc/x86_64-w64-mingw32/*.a")
+        list(FILTER _mingw_stdcpp INCLUDE REGEX "libstdc\\+\\+\\.a$")
+        list(GET _mingw_stdcpp 0 CVK_STDCPP_MINGW_SRC)
+    endif()
+    message(STATUS "CVK mingw libstdc++: ${CVK_STDCPP_MINGW_SRC}")
+    set(_out "${CVK_OUTPUT_DIR}/libstdc++_mingw_x64.a")
+    add_custom_command(OUTPUT "${_out}"
+            COMMAND "${CMAKE_COMMAND}" -E copy "${CVK_STDCPP_MINGW_SRC}" "${_out}"
+            DEPENDS "${CVK_STDCPP_MINGW_SRC}"
+            VERBATIM)
+    list(APPEND CVK_COPIED_LIBS "${_out}")
+endif()
 
 
 add_custom_target(opencv_kmp ALL DEPENDS ${CVK_COPIED_LIBS})
