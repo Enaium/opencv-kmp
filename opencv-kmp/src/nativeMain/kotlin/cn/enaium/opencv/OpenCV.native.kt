@@ -119,7 +119,11 @@ import cvk.cvk_magnitude
 import cvk.cvk_mahalanobis
 import cvk.cvk_mat_absdiff
 import cvk.cvk_mat_add
+import cvk.cvk_mat_add_scalar
 import cvk.cvk_mat_adjust_roi
+import cvk.cvk_mat_divide_scalar
+import cvk.cvk_mat_multiply_scalar
+import cvk.cvk_mat_subtract_scalar
 import cvk.cvk_mat_bitwise_and
 import cvk.cvk_mat_bitwise_not
 import cvk.cvk_mat_bitwise_or
@@ -1288,6 +1292,21 @@ internal actual fun contourRect(contour: List<Point>): Rect = memScoped {
 }
 
 // =========================================================================
+// Mat <-> Scalar arithmetic (cv::add/subtract/multiply/divide with a Scalar)
+// =========================================================================
+// =========================================================================
+
+internal actual fun Mat.addScalar(s: Scalar): Mat =
+    nativeMat(cvk_mat_add_scalar(nativeHandle(), s.toCvk()), "plus(Scalar)")
+
+internal actual fun Mat.subtractScalar(s: Scalar): Mat =
+    nativeMat(cvk_mat_subtract_scalar(nativeHandle(), s.toCvk()), "minus(Scalar)")
+
+internal actual fun Mat.multiplyScalar(s: Scalar): Mat =
+    nativeMat(cvk_mat_multiply_scalar(nativeHandle(), s.toCvk()), "times(Scalar)")
+
+internal actual fun Mat.divideScalar(s: Scalar): Mat =
+    nativeMat(cvk_mat_divide_scalar(nativeHandle(), s.toCvk()), "div(Scalar)")
 // CLAHE
 // =========================================================================
 

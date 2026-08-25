@@ -229,6 +229,21 @@ BINARY_OP(divide, cvk_mat_divide(as_mat(a), as_mat(b)))
 UNARY_OP(bitwiseNot, cvk_mat_bitwise_not(as_mat(a)))
 UNARY_OP(transpose, cvk_mat_transpose(as_mat(a)))
 
+#define SCALAR_OP(java_name, c_expr)                                           \
+    JNIEXPORT jlong JNICALL                                                   \
+    Java_cn_enaium_opencv_Jni_##java_name(JNIEnv *env, jobject, jlong a,       \
+                                          jdouble v0, jdouble v1, jdouble v2,   \
+                                          jdouble v3) {                        \
+        return as_handle(c_expr);                                             \
+    }
+
+SCALAR_OP(addScalar, cvk_mat_add_scalar(as_mat(a), as_scalar(env, v0, v1, v2, v3)))
+SCALAR_OP(subtractScalar, cvk_mat_subtract_scalar(as_mat(a), as_scalar(env, v0, v1, v2, v3)))
+SCALAR_OP(multiplyScalar, cvk_mat_multiply_scalar(as_mat(a), as_scalar(env, v0, v1, v2, v3)))
+SCALAR_OP(divideScalar, cvk_mat_divide_scalar(as_mat(a), as_scalar(env, v0, v1, v2, v3)))
+
+#undef SCALAR_OP
+
 #undef BINARY_OP
 #undef UNARY_OP
 

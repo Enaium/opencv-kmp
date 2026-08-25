@@ -29,7 +29,15 @@
  * Kotlin/Native sysroot (GCC 8.3) does not export. Compiling an explicit
  * instantiation definition here makes the host toolchain emit strong local
  * definitions; the linker then never needs them from the ancient copy.
+ *
+ * mingwX64 embeds the full MinGW GNU runtime archive (libstdc++_mingw_x64.a)
+ * instead of the K/N sysroot, which already provides every one of these
+ * symbols; the CMake option CVK_SKIP_STDCPP_SHIM is set for that target and
+ * compiles this TU to a no-op so the strong definitions here do not collide
+ * with identical ones from the embedded runtime (ld.lld duplicate symbol).
  */
+#if !defined(CVK_SKIP_STDCPP_SHIM)
+
 #include <new>
 #include <sstream>
 
@@ -53,5 +61,6 @@ template class std::basic_stringstream<char, std::char_traits<char>, std::alloca
 template class std::basic_ostringstream<char, std::char_traits<char>, std::allocator<char>>;
 template class std::basic_istringstream<char, std::char_traits<char>, std::allocator<char>>;
 
-
 #endif /* !__ANDROID__ */
+
+#endif /* !CVK_SKIP_STDCPP_SHIM */

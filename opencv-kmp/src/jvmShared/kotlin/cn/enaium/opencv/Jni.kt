@@ -72,6 +72,10 @@ internal object Jni {
     external fun subtract(a: Long, b: Long): Long
     external fun multiply(a: Long, b: Long, scale: Double): Long
     external fun divide(a: Long, b: Long): Long
+    external fun addScalar(mat: Long, v0: Double, v1: Double, v2: Double, v3: Double): Long
+    external fun subtractScalar(mat: Long, v0: Double, v1: Double, v2: Double, v3: Double): Long
+    external fun multiplyScalar(mat: Long, v0: Double, v1: Double, v2: Double, v3: Double): Long
+    external fun divideScalar(mat: Long, v0: Double, v1: Double, v2: Double, v3: Double): Long
     external fun scaleAdd(mat: Long, alpha: Double, beta: Double): Long
     external fun absdiff(a: Long, b: Long): Long
     external fun bitwiseAnd(a: Long, b: Long): Long

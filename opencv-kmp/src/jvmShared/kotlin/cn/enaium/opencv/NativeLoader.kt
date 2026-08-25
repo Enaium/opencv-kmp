@@ -92,9 +92,13 @@ internal object NativeLoader {
     }
 
     private fun detectOs(): String {
-        // Android reports os.name as "Linux"; Dalvik/ART always ships
-        // android.os.Build, so probe for it reflectively.
-        if (runCatching { Class.forName("android.os.Build") }.isSuccess) return "android"
+        // Android reports os.name as "Linux"; Dalvik/ART distinguishes itself
+        // via java.vendor / java.runtime.name system properties, so detect it
+        // without loading any class reflectively.
+        val isAndroid = listOf("java.vendor", "java.runtime.name", "java.vm.name")
+            .map { System.getProperty(it).orEmpty() }
+            .any { it.contains("Android") || it.contains("Dalvik") }
+        if (isAndroid) return "android"
         val osName = System.getProperty("os.name").orEmpty().lowercase()
         return when {
             osName.contains("linux") -> "linux"

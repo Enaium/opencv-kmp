@@ -128,6 +128,7 @@ jobs:
           :opencv-kmp:publishAndroidNativeArm32PublicationToMavenCentralRepository
           :opencv-kmp:publishAndroidNativeX64PublicationToMavenCentralRepository
           :opencv-kmp:publishAndroidNativeX86PublicationToMavenCentralRepository
+          :opencv-kmp:publishAndroidPublicationToMavenCentralRepository
           :jni-jvm-linux-x86_64:publishMavenPublicationToMavenCentralRepository
           :jni-jvm-linux-aarch64:publishMavenPublicationToMavenCentralRepository
           :jni-jvm-android-arm64-v8a:publishMavenPublicationToMavenCentralRepository

@@ -144,6 +144,11 @@ cvk_mat_t *cvk_mat_add(const cvk_mat_t *a, const cvk_mat_t *b);
 cvk_mat_t *cvk_mat_subtract(const cvk_mat_t *a, const cvk_mat_t *b);
 cvk_mat_t *cvk_mat_multiply(const cvk_mat_t *a, const cvk_mat_t *b, double scale);
 cvk_mat_t *cvk_mat_divide(const cvk_mat_t *a, const cvk_mat_t *b);
+/** Centralized per-channel Scalar arithmetic (cv::add/subtract/multiply/divide). */
+cvk_mat_t *cvk_mat_add_scalar(const cvk_mat_t *a, cvk_scalar_t s);
+cvk_mat_t *cvk_mat_subtract_scalar(const cvk_mat_t *a, cvk_scalar_t s);
+cvk_mat_t *cvk_mat_multiply_scalar(const cvk_mat_t *a, cvk_scalar_t s);
+cvk_mat_t *cvk_mat_divide_scalar(const cvk_mat_t *a, cvk_scalar_t s);
 cvk_mat_t *cvk_mat_scale_add(const cvk_mat_t *mat, double alpha, double beta);
 cvk_mat_t *cvk_mat_absdiff(const cvk_mat_t *a, const cvk_mat_t *b);
 

@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
+    alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.kotlin.multiplatform)
     id("com.vanniktech.maven.publish")
 }
@@ -112,6 +113,19 @@ kotlin {
         }
     }
 
+    // ==================== Android (JVM on ART) ====================
+    // Same JNI runtime as the desktop JVM target; NativeLoader picks the
+    // android-* classifier at runtime. Bitmap <-> Mat interop lives in
+    // androidMain (android.graphics is not on the desktop classpath).
+    android {
+        namespace = "cn.enaium.opencv"
+        compileSdk = 36
+        minSdk = 26
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
     // ==================== Native ====================
     macosArm64()
     macosX64()
@@ -182,7 +196,7 @@ kotlin {
                                 // mingwX64: K/N's bundled GNU runtime is too
                                 // old for the host-cross-compiled archives
                                 (if (targetName == "mingwX64") {
-                                    listOf("stdc++_mingw_x64")
+                                    listOf("stdc++_mingw_x64", "gcc_mingw_x64")
                                 } else {
                                     emptyList()
                                 })
@@ -205,6 +219,13 @@ kotlin {
             kotlin.setSrcDirs(emptyList<String>())
             resources.setSrcDirs(emptyList<String>())
         }
+        // JVM actuals (JNI bridge, loader, platform) shared verbatim by the
+        // desktop jvm() and android() targets; both compile to JVM bytecode
+        // against the same libopencv_jni C ABI.
+        val jvmShared = maybeCreate("jvmShared")
+        jvmShared.dependsOn(getByName("commonMain"))
+        getByName("jvmMain").dependsOn(jvmShared)
+        getByName("androidMain").dependsOn(jvmShared)
         commonMain {
             dependencies {
                 implementation(kotlin("stdlib-common"))
@@ -229,6 +250,18 @@ kotlin {
                 runtimeOnly(project(":jni-jvm-darwin-x86_64"))
                 runtimeOnly(project(":jni-jvm-darwin-aarch64"))
                 runtimeOnly(project(":jni-jvm-windows-x86_64"))
+                runtimeOnly(project(":jni-jvm-android-arm64-v8a"))
+                runtimeOnly(project(":jni-jvm-android-armeabi-v7a"))
+                runtimeOnly(project(":jni-jvm-android-x86"))
+                runtimeOnly(project(":jni-jvm-android-x86_64"))
+            }
+        }
+
+        // Android variant bundles only the android-* JNI libraries; the
+        // desktop JVM variant keeps bundling every classifier so a single
+        // desktop dependency runs on any host OS.
+        androidMain {
+            dependencies {
                 runtimeOnly(project(":jni-jvm-android-arm64-v8a"))
                 runtimeOnly(project(":jni-jvm-android-armeabi-v7a"))
                 runtimeOnly(project(":jni-jvm-android-x86"))

@@ -54,7 +54,10 @@ The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps g
 
 ### API highlights
 
-- `Mat` implements `AutoCloseable`; use `use { }`.
+- Operators on `Mat`: `+ - * /` with another `Mat` or a `Scalar`, indexed `get`/`set`, `times(scale)`, broadcast `+ - / Double`, `abs()`/`squared()`, infix `bitwiseAnd/Or/Xor`, `diff`, `rsub`.
+- Scalar arithmetic: `Scalar + - * / Scalar`, `* / + - Double`, `unaryMinus`, infix `dist`.
+- Extensions in common code: `toGray()`, `toFloat32()`, `normalize01()`, `mirror()`, `rotate90/180/270()`, `pixels: ByteArray`, `shape`, `fill { }`.
+- Factories: `mat()`, `zeros()`, `ones()`, `eye()`, `imread()`, `imwrite()`, `imencode()`, `imdecode()`.
 - Operators on `Mat`: `+ - * /`, indexed `get`/`set`, `times(scale)`, infix `bitwiseAnd/Or/Xor`, infix `diff`.
 - Extensions in common code: `toGray()`, `toFloat32()`, `normalize01()`, `mirror()`, `rotate90/180/270()`, `pixels: ByteArray`, `shape`, `fill { }`.
 - Factories: `mat()`, `zeros()`, `ones()`, `eye()`, `imread()`, `imwrite()`, `imencode()`, `imdecode()`.

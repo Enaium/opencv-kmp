@@ -420,6 +420,25 @@ cvk_mat_t *cvk_mat_divide(const cvk_mat_t *a, const cvk_mat_t *b) {
     });
 }
 
+/** Per-channel arithmetic with a scalar (cv::add/subtract/multiply/divide). */
+#define SCALAR_OP(name, expr)                                                    \
+    cvk_mat_t *name(const cvk_mat_t *a, cvk_scalar_t s) {                       \
+        const cv::Mat *ma = require_const(a);                                   \
+        if (ma == nullptr) return nullptr;                                      \
+        return guarded([&]() -> cvk_mat_t * {                                   \
+            auto *dst = new cv::Mat();                                          \
+            (void)expr;                                                         \
+            return reinterpret_cast<cvk_mat_t *>(dst);                          \
+        });                                                                      \
+    }
+
+SCALAR_OP(cvk_mat_add_scalar, cv::add(*ma, cv_scalar(s), *dst))
+SCALAR_OP(cvk_mat_subtract_scalar, cv::subtract(*ma, cv_scalar(s), *dst))
+SCALAR_OP(cvk_mat_multiply_scalar, cv::multiply(*ma, cv_scalar(s), *dst))
+SCALAR_OP(cvk_mat_divide_scalar, cv::divide(*ma, cv_scalar(s), *dst))
+
+#undef SCALAR_OP
+
 cvk_mat_t *cvk_mat_scale_add(const cvk_mat_t *mat, double alpha, double beta) {
     const cv::Mat *src = require_const(mat);
     if (src == nullptr) return nullptr;

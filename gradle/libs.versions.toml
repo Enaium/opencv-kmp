@@ -1,5 +1,6 @@
 [versions]
 kotlin = "2.4.10"
+agp = "9.0.0"
 junit = "5.11.0"
 junit-platform = "1.11.0"
 maven-publish = "0.37.0"
@@ -13,3 +14,4 @@ junit-platform-launcher = { group = "org.junit.platform", name = "junit-platform
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }
+android-kmp-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }

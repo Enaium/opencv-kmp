@@ -877,6 +877,20 @@ internal actual fun contourRect(contour: List<Point>): Rect {
 }
 
 // =========================================================================
+// Mat <-> Scalar arithmetic (cv::add/subtract/multiply/divide with a Scalar)
+// =========================================================================
+
+internal actual fun Mat.addScalar(s: Scalar): Mat =
+    jvmMat(Jni.addScalar(handleOf(this), s.v0, s.v1, s.v2, s.v3), "plus(Scalar)")
+
+internal actual fun Mat.subtractScalar(s: Scalar): Mat =
+    jvmMat(Jni.subtractScalar(handleOf(this), s.v0, s.v1, s.v2, s.v3), "minus(Scalar)")
+
+internal actual fun Mat.multiplyScalar(s: Scalar): Mat =
+    jvmMat(Jni.multiplyScalar(handleOf(this), s.v0, s.v1, s.v2, s.v3), "times(Scalar)")
+
+internal actual fun Mat.divideScalar(s: Scalar): Mat =
+    jvmMat(Jni.divideScalar(handleOf(this), s.v0, s.v1, s.v2, s.v3), "div(Scalar)")
 // CLAHE factory
 // =========================================================================
 

@@ -57,7 +57,6 @@ fun Mat.mirror(): Mat = flip(FlipMode.HORIZONTAL)
 /** Upside-down flip around the x-axis. */
 fun Mat.upsideDown(): Mat = flip(FlipMode.VERTICAL)
 
-
 /** Converts an 8-bit image to 32-bit floats in 0..255 range. */
 fun Mat.toFloat32(): Mat = convertTo(type = cvMakeType(CV_32F, channels))
 
@@ -94,3 +93,46 @@ fun Mat.fill(value: (row: Int, col: Int, channel: Int) -> Double): Mat {
 
 /** Element-wise absolute difference as an infix shortcut. */
 infix fun Mat.diff(other: Mat): Mat = absDiff(other)
+
+// =========================================================================
+// Mat <-> Scalar arithmetic (cv::add/subtract/multiply/divide with a Scalar)
+// =========================================================================
+
+/** Adds a scalar to every element per channel (`cv::add` with a scalar). */
+operator fun Mat.plus(s: Scalar): Mat = addScalar(s)
+
+/** Subtracts a scalar from every element per channel (`cv::subtract` with a scalar). */
+operator fun Mat.minus(s: Scalar): Mat = subtractScalar(s)
+
+/** Multiplies every element by the scalar per channel (`cv::multiply` with a scalar). */
+operator fun Mat.times(s: Scalar): Mat = multiplyScalar(s)
+
+/** Divides every element by the scalar per channel (`cv::divide` with a scalar). */
+operator fun Mat.div(s: Scalar): Mat = divideScalar(s)
+
+/** Whole-image broadcast: adds [value] to every channel (`img + 50`). */
+operator fun Mat.plus(value: Double): Mat = addScalar(Scalar.all(value))
+
+/** Whole-image broadcast: subtracts [value] from every channel (`img - 50`). */
+operator fun Mat.minus(value: Double): Mat = subtractScalar(Scalar.all(value))
+
+/** Whole-image broadcast: divides every channel by [value] (`img / 50`). */
+operator fun Mat.div(value: Double): Mat = divideScalar(Scalar.all(value))
+
+internal expect fun Mat.addScalar(s: Scalar): Mat
+internal expect fun Mat.subtractScalar(s: Scalar): Mat
+internal expect fun Mat.multiplyScalar(s: Scalar): Mat
+internal expect fun Mat.divideScalar(s: Scalar): Mat
+
+// =========================================================================
+// Pure-Kotlin Mat convenience sugar (backed by existing native ops)
+// =========================================================================
+
+/** Element-wise square: `this * this` (cv::multiply). */
+fun Mat.squared(): Mat = times(this)
+
+/** Element-wise absolute value (`cv::abs` semantics via absdiff with zero). */
+fun Mat.abs(): Mat = zeros(rows, cols, type).use { absDiff(it) }
+
+/** Reverse subtraction: [other] - this (`cv2.subtract(other, this)`). */
+infix fun Mat.rsub(other: Mat): Mat = other.minus(this)

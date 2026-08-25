@@ -241,6 +241,26 @@ if(WIN32 OR EXISTS "/usr/x86_64-w64-mingw32")
             DEPENDS "${CVK_STDCPP_MINGW_SRC}"
             VERBATIM)
     list(APPEND CVK_COPIED_LIBS "${_out}")
+
+    # OpenCV's system.cpp references __gthr_win32_*, which only the
+    # win32-thread-model libgcc (gcc-mingw-w64-x86-64-win32) defines; the
+    # posix variant's libgcc does not, so prefer the *-win32 archive.
+    file(GLOB_RECURSE _mingw_libgcc_win32 "/usr/lib/gcc/x86_64-w64-mingw32/*win32*/libgcc.a")
+    file(GLOB_RECURSE _mingw_libgcc_any "/usr/lib/gcc/x86_64-w64-mingw32/*/libgcc.a")
+    if(_mingw_libgcc_win32)
+        list(GET _mingw_libgcc_win32 0 CVK_LIBGCC_MINGW_SRC)
+    elseif(_mingw_libgcc_any)
+        list(GET _mingw_libgcc_any 0 CVK_LIBGCC_MINGW_SRC)
+    endif()
+    if(CVK_LIBGCC_MINGW_SRC)
+        message(STATUS "CVK mingw libgcc: ${CVK_LIBGCC_MINGW_SRC}")
+        set(_out "${CVK_OUTPUT_DIR}/libgcc_mingw_x64.a")
+        add_custom_command(OUTPUT "${_out}"
+                COMMAND "${CMAKE_COMMAND}" -E copy "${CVK_LIBGCC_MINGW_SRC}" "${_out}"
+                DEPENDS "${CVK_LIBGCC_MINGW_SRC}"
+                VERBATIM)
+        list(APPEND CVK_COPIED_LIBS "${_out}")
+    endif()
 endif()
 
 
