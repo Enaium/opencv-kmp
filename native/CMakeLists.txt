@@ -213,8 +213,14 @@ endif()
 
 set(CVK_COPIED_LIBS "")
 
-foreach(_t cvk_shim opencv_imgcodecs opencv_features opencv_imgproc opencv_flann
-        opencv_geometry opencv_core)
+set(CVK_COPY_MODULES cvk_shim opencv_imgcodecs opencv_features opencv_imgproc
+        opencv_flann opencv_geometry opencv_core)
+# highgui is built on desktop targets only (Android keeps the lean list).
+if(NOT ANDROID)
+    list(APPEND CVK_COPY_MODULES opencv_highgui)
+endif()
+
+foreach(_t ${CVK_COPY_MODULES})
     set(_out "${CVK_OUTPUT_DIR}/lib${_t}.a")
     add_custom_command(OUTPUT "${_out}"
             COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:${_t}>" "${_out}"

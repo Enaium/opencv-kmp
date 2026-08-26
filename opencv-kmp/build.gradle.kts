@@ -203,13 +203,26 @@ kotlin {
                         val outputDir = layout.buildDirectory.dir("native/$targetName").get().asFile
                         val embeddedLibs = listOf(
                             "cvk_shim",
-                            "opencv_imgcodecs",
-                            "opencv_features",
-                            "opencv_imgproc",
-                            "opencv_flann",
-                            "opencv_geometry",
-                            "opencv_core",
                         ) +
+                                // highgui exists only on desktop builds
+                                // (Android keeps the lean module list)
+                                (if (targetName in setOf(
+                                        "macosArm64", "macosX64",
+                                        "linuxX64", "linuxArm64",
+                                        "mingwX64",
+                                    )) {
+                                    listOf("opencv_highgui")
+                                } else {
+                                    emptyList()
+                                }) +
+                                listOf(
+                                    "opencv_imgcodecs",
+                                    "opencv_features",
+                                    "opencv_imgproc",
+                                    "opencv_flann",
+                                    "opencv_geometry",
+                                    "opencv_core",
+                                ) +
                                 // ARM HAL archives exist only on ARM targets
                                 (when {
                                     targetName in aarch64Targets -> armHalLibs
