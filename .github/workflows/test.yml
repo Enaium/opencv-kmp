@@ -53,7 +53,7 @@ jobs:
             opencv-kmp/build/native/*
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'opencv/CMakeLists.txt') }}
+          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'jni/jni_bridge.cpp') }}
           restore-keys: native-${{ runner.os }}-
 
       - name: Decode signing key
@@ -125,7 +125,7 @@ jobs:
             opencv-kmp/build/native/*
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'opencv/CMakeLists.txt') }}
+          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'jni/jni_bridge.cpp') }}
           restore-keys: native-${{ runner.os }}-
 
       - name: Decode signing key
