@@ -1,6 +1,6 @@
 # opencv-kmp
 
-Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.x, `core` / `imgproc` / `imgcodecs`), modeled after [sdl-kmp](https://github.com/Enaium/sdl-kmp).
+Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.x, `core` / `imgproc` / `imgcodecs`).
 
 - **Kotlin/Native** — OpenCV is compiled statically per target and embedded into the published klib through cinterop; consumers link it without any extra setup.
 - **JVM (desktop + Android)** — a self-contained JNI shared library (`libopencv_jni`) is built from the OpenCV submodule and shipped as a classpath resource per OS/arch; `NativeLoader` extracts and loads the matching one at runtime.
