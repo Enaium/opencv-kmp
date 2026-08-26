@@ -151,12 +151,12 @@ kotlin {
     androidNativeX86()
 
     // ==================== cinterop for all native targets ====================
-    // Linux highgui (GTK3) symbols are provided by system shared libraries,
-    // so every linux binary must link them explicitly; the archives embed
-    // only the OpenCV object files.
+    // highgui window backends live in system libraries: GTK3 on Linux and
+    // the Cocoa/AppKit frameworks on macOS. The embedded archives reference
+    // them, so every desktop binary must link them explicitly.
     targets.withType<KotlinNativeTarget>().configureEach {
-        if (name == "linuxX64" || name == "linuxArm64") {
-            binaries.configureEach {
+        when (name) {
+            "linuxX64", "linuxArm64" -> binaries.configureEach {
                 linkerOpts(
                     // GTK3 lives in the host system lib dir, which the
                     // Kotlin/Native sysroot does not search by default.
@@ -165,6 +165,9 @@ kotlin {
                     "-lharfbuzz", "-latk-1.0", "-lcairo-gobject", "-lcairo",
                     "-lgdk_pixbuf-2.0", "-lgio-2.0", "-lgobject-2.0", "-lglib-2.0",
                 )
+            }
+            "macosArm64", "macosX64" -> binaries.configureEach {
+                linkerOpts("-framework", "Cocoa", "-framework", "AppKit")
             }
         }
     }
