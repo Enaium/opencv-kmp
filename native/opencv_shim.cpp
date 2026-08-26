@@ -2587,7 +2587,7 @@ void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
  * highgui (desktop backends: Win32UI / Cocoa; headless Linux and Android
  * get no-op stubs that report on stderr so callers can detect it)
  * ========================================================================= */
-#if defined(__ANDROID__) || defined(__linux__)
+#if defined(__ANDROID__)
 #define CVK_HIGHGUI_UNAVAILABLE 1
 #endif
 

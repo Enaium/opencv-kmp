@@ -49,11 +49,11 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers) and features (corner
 # detectors) are OpenCV 5's new homes for classic imgproc APIs the binding
 # exposes; imgproc already pulls them in, features is added explicitly.
-# highgui is a real window backend only on Windows (Win32UI) and macOS
-# (Cocoa). Android has no desktop GUI and Linux builds headless (GTK is off
-# to keep the artifacts self-contained), so both keep the lean module list;
-# the shim provides no-op stubs there.
-if(ANDROID OR (UNIX AND NOT APPLE))
+# highgui needs a real window backend: Win32UI on Windows, Cocoa on macOS,
+# GTK on Linux. Android has no desktop GUI so it keeps the lean module list
+# (the shim provides no-op stubs there). GTK3 headers/libraries must be
+# installed on the build host (CI installs libgtk-3-dev).
+if(ANDROID)
     set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
 else()
     set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features,highgui" CACHE STRING "" FORCE)
@@ -114,13 +114,17 @@ foreach(_opt
 endforeach()
 
 # Desktop window backends for highgui. Win32UI ships with every MinGW/
-# MSVC toolchain and Cocoa with Xcode; GTK would drag system packages into
-# the self-contained artifacts, so Linux stays headless by design.
+# MSVC toolchain, Cocoa with Xcode, and GTK3 is the Linux backend (the CI
+# runner installs libgtk-3-dev).
 if(WIN32 AND NOT ANDROID)
     set(WITH_WIN32UI ON CACHE BOOL "" FORCE)
 endif()
 if(APPLE AND NOT ANDROID)
     set(WITH_COCOA ON CACHE BOOL "" FORCE)
+endif()
+if(UNIX AND NOT APPLE AND NOT ANDROID)
+    set(WITH_GTK ON CACHE BOOL "" FORCE)
+    set(WITH_GTK_2_X OFF CACHE BOOL "" FORCE)
 endif()
 
 set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
