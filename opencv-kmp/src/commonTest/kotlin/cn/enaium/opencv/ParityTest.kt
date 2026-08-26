@@ -158,7 +158,10 @@ class ParityTest {
 
     @Test
     fun svdReconstructsDiagonalMatrix() {
-        mat(3, 3, MatType.CV_32FC1).use { src ->
+        // zeros() (not mat()) so the off-diagonal elements are guaranteed 0;
+        // mat() leaves them uninitialized and SVD then reads garbage that
+        // differs across allocators/platforms.
+        zeros(3, 3, MatType.CV_32FC1).use { src ->
             src[0, 0] = 3.0
             src[1, 1] = 2.0
             src[2, 2] = 1.0
@@ -166,17 +169,12 @@ class ParityTest {
             decomposition.w.use { w ->
                 decomposition.u.use { u ->
                     decomposition.vt.use { vt ->
-                        // Singular values must be {3, 2, 1} descending.
-                        // Different OpenCV builds (clang vs gcc/MinGW) use
-                        // different SVD backends whose rounding and column
-                        // ordering can vary, so compare as a sorted set with
-                        // a generous tolerance and dump actuals on failure.
+                        // Singular values of diag(3,2,1) are {3,2,1};
+                        // compare as a sorted ascending set {1,2,3} so the
+                        // check is immune to backend ordering, with a
+                        // generous tolerance for platform rounding.
                         val sv = listOf(w[0, 0], w[1, 0], w[2, 0]).sorted()
                         println("svd singular values: $sv")
-                        // The exact singular values of diag(3,2,1) are
-                        // {1,2,3}; different OpenCV builds (MinGW/gcc/clang)
-                        // may round slightly differently, so use a generous
-                        // tolerance and let the println above diagnose.
                         assertClose(1.0, sv[0], 0.05)
                         assertClose(2.0, sv[1], 0.05)
                         assertClose(3.0, sv[2], 0.05)
