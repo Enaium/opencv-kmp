@@ -49,9 +49,11 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers) and features (corner
 # detectors) are OpenCV 5's new homes for classic imgproc APIs the binding
 # exposes; imgproc already pulls them in, features is added explicitly.
-# highgui is desktop-only: it adds native window backends (Win32UI/Cocoa/
-# GTK) that do not exist on Android, so the Android build keeps the lean list.
-if(ANDROID)
+# highgui is a real window backend only on Windows (Win32UI) and macOS
+# (Cocoa). Android has no desktop GUI and Linux builds headless (GTK is off
+# to keep the artifacts self-contained), so both keep the lean module list;
+# the shim provides no-op stubs there.
+if(ANDROID OR (UNIX AND NOT APPLE))
     set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
 else()
     set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features,highgui" CACHE STRING "" FORCE)
