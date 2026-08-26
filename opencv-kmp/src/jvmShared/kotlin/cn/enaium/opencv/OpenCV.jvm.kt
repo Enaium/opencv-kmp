@@ -43,7 +43,7 @@ private fun matPair(handles: LongArray, operation: String): Pair<Mat, Mat> =
     }
 
 /** Raw handle of any JVM-backed Mat argument. */
-private fun handleOf(mat: Mat): Long =
+internal fun handleOf(mat: Mat): Long =
     (mat as? JvmMat)?.check()
         ?: throw IllegalArgumentException("mat belongs to another platform backend")
 

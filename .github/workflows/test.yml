@@ -204,6 +204,12 @@ jobs:
           :opencv-kmp:publishAndroidNativeX64PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeX86PublicationToMavenLocal
 
+      - name: Run Android host tests (JVM)
+        # commonTest suite executed against the android variant's JVM
+        # classes on the runner host (NativeLoader picks a desktop JNI lib
+        # from the androidHostTest-only runtime dependencies).
+        run: ./gradlew --no-daemon :opencv-kmp:testAndroidHostTest
+
       - name: Build android native examples (shared lib per ABI)
         # Kotlin/Native cross-compiles the androidNative targets on any host
         # with the Android NDK; each link produces the per-ABI shared library

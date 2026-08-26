@@ -491,4 +491,13 @@ internal object Jni {
         iters: Int,
         mode: Int,
     )
+
+    // highgui (desktop window backends)
+
+    external fun namedWindow(winname: String, flags: Int)
+    external fun resizeWindow(winname: String, width: Int, height: Int)
+    external fun imshow(winname: String, mat: Long)
+    external fun waitKey(delayMs: Int): Int
+    external fun destroyWindow(winname: String)
+    external fun destroyAllWindows()
 }

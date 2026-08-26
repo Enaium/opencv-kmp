@@ -98,18 +98,6 @@ infix fun Mat.diff(other: Mat): Mat = absDiff(other)
 // Mat <-> Scalar arithmetic (cv::add/subtract/multiply/divide with a Scalar)
 // =========================================================================
 
-/** Adds a scalar to every element per channel (`cv::add` with a scalar). */
-operator fun Mat.plus(s: Scalar): Mat = addScalar(s)
-
-/** Subtracts a scalar from every element per channel (`cv::subtract` with a scalar). */
-operator fun Mat.minus(s: Scalar): Mat = subtractScalar(s)
-
-/** Multiplies every element by the scalar per channel (`cv::multiply` with a scalar). */
-operator fun Mat.times(s: Scalar): Mat = multiplyScalar(s)
-
-/** Divides every element by the scalar per channel (`cv::divide` with a scalar). */
-operator fun Mat.div(s: Scalar): Mat = divideScalar(s)
-
 /** Whole-image broadcast: adds [value] to every channel (`img + 50`). */
 operator fun Mat.plus(value: Double): Mat = addScalar(Scalar.all(value))
 

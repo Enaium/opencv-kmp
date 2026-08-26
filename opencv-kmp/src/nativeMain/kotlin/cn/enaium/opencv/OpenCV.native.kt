@@ -1095,7 +1095,7 @@ actual fun imdecode(data: ByteArray, flags: Int): Mat? =
     }
 
 /** Unwraps a platform Mat into its raw cvk handle. */
-private fun Mat.nativeHandle(): CPointer<cvk_mat_t> =
+internal fun Mat.nativeHandle(): CPointer<cvk_mat_t> =
     (this as? NativeMat)?.check()
         ?: throw IllegalArgumentException("mat belongs to another platform backend")
 

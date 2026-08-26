@@ -793,6 +793,28 @@ void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
                   cvk_mat_t *bgd_model, cvk_mat_t *fgd_model,
                   int iterations, int mode);
 
+/* =========================================================================
+ * highgui (desktop only; the Android shim build provides no-ops)
+ * ========================================================================= */
+
+/** cv::namedWindow. flags: WindowFlags (WINDOW_AUTOSIZE etc.). */
+void cvk_named_window(const char *winname, int flags);
+
+/** cv::resizeWindow. */
+void cvk_resize_window(const char *winname, int width, int height);
+
+/** cv::imshow. */
+void cvk_imshow(const char *winname, const cvk_mat_t *mat);
+
+/** cv::waitKey; returns the pressed key code or -1. */
+int cvk_wait_key(int delay_ms);
+
+/** cv::destroyWindow. */
+void cvk_destroy_window(const char *winname);
+
+/** cv::destroyAllWindows. */
+void cvk_destroy_all_windows(void);
+
 #ifdef __cplusplus
 }
 #endif

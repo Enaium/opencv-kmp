@@ -110,6 +110,11 @@ kotlin {
         }
         testRuns["test"].executionTask.configure {
             useJUnitPlatform()
+            testLogging {
+                showStandardStreams = true
+                showExceptions = true
+                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            }
         }
     }
 
@@ -121,6 +126,11 @@ kotlin {
         namespace = "cn.enaium.opencv"
         compileSdk = 36
         minSdk = 26
+
+        // Expose the host-side unit test task (testAndroidHostTest) so CI
+        // can run the common test suite against the android variant's JVM
+        // classes.
+        withHostTest {}
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_17)
         }
@@ -240,20 +250,16 @@ kotlin {
 
         jvmMain {
             dependencies {
-                // OpenCV on the JVM comes from our own JNI shared library
-                // (libopencv_jni), built from the cvk shim plus the OpenCV
-                // submodule. Bundle all nine artifacts so consumers get the
-                // right native binary out of the box; NativeLoader picks one
-                // at runtime by os.name/os.arch (including Android).
+                // Desktop JVM bundles only the desktop JNI libraries;
+                // android-* stay in the android variant (androidMain) so a
+                // Linux CI job never has to build the Android artifacts.
+                // NativeLoader picks the right desktop classifier at runtime
+                // by os.name/os.arch.
                 runtimeOnly(project(":jni-jvm-linux-x86_64"))
                 runtimeOnly(project(":jni-jvm-linux-aarch64"))
                 runtimeOnly(project(":jni-jvm-darwin-x86_64"))
                 runtimeOnly(project(":jni-jvm-darwin-aarch64"))
                 runtimeOnly(project(":jni-jvm-windows-x86_64"))
-                runtimeOnly(project(":jni-jvm-android-arm64-v8a"))
-                runtimeOnly(project(":jni-jvm-android-armeabi-v7a"))
-                runtimeOnly(project(":jni-jvm-android-x86"))
-                runtimeOnly(project(":jni-jvm-android-x86_64"))
             }
         }
 
@@ -266,6 +272,17 @@ kotlin {
                 runtimeOnly(project(":jni-jvm-android-armeabi-v7a"))
                 runtimeOnly(project(":jni-jvm-android-x86"))
                 runtimeOnly(project(":jni-jvm-android-x86_64"))
+            }
+        }
+
+        // Android host unit tests execute on the developer/CI desktop JVM,
+        // so they need a desktop JNI library to link against. Scope it to
+        // this source set only - the published AAR keeps shipping just the
+        // android-* libraries.
+        getByName("androidHostTest") {
+            dependencies {
+                runtimeOnly(project(":jni-jvm-darwin-aarch64"))
+                runtimeOnly(project(":jni-jvm-linux-x86_64"))
             }
         }
 

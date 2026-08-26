@@ -35,7 +35,11 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/geometry.hpp>
 #include <opencv2/features.hpp>
+#if !defined(__ANDROID__)
+#include <opencv2/highgui.hpp>
+#endif
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -2577,3 +2581,84 @@ void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
 }
 
 } /* extern "C" */
+
+
+/* =========================================================================
+ * highgui (desktop backends: Win32UI / Cocoa; headless Linux and Android
+ * get no-op stubs that report on stderr so callers can detect it)
+ * ========================================================================= */
+#if defined(__ANDROID__)
+#define CVK_HIGHGUI_UNAVAILABLE 1
+#endif
+
+void cvk_named_window(const char *winname, int flags) {
+#ifdef CVK_HIGHGUI_UNAVAILABLE
+    (void)winname; (void)flags;
+    fprintf(stderr, "opencv-kmp: highgui is not available on this platform\n");
+#else
+    const cv::Mat *m = nullptr; (void)m;
+    guarded([&]() -> cvk_mat_t * {
+        cv::namedWindow(winname, flags);
+        return nullptr;
+    });
+#endif
+}
+
+void cvk_resize_window(const char *winname, int width, int height) {
+#ifdef CVK_HIGHGUI_UNAVAILABLE
+    (void)winname; (void)width; (void)height;
+    fprintf(stderr, "opencv-kmp: highgui is not available on this platform\n");
+#else
+    guarded([&]() -> cvk_mat_t * {
+        cv::resizeWindow(winname, width, height);
+        return nullptr;
+    });
+#endif
+}
+
+void cvk_imshow(const char *winname, const cvk_mat_t *mat) {
+#ifdef CVK_HIGHGUI_UNAVAILABLE
+    (void)winname; (void)mat;
+    fprintf(stderr, "opencv-kmp: highgui is not available on this platform\n");
+#else
+    const cv::Mat *m = require_const(mat);
+    if (m == nullptr) return;
+    guarded([&]() -> cvk_mat_t * {
+        cv::imshow(winname, *m);
+        return nullptr;
+    });
+#endif
+}
+
+int cvk_wait_key(int delay_ms) {
+#ifdef CVK_HIGHGUI_UNAVAILABLE
+    (void)delay_ms;
+    fprintf(stderr, "opencv-kmp: highgui is not available on this platform\n");
+    return -1;
+#else
+    int key = guarded([&]() -> int {
+        return cv::waitKey(delay_ms);
+    });
+    return key;
+#endif
+}
+
+void cvk_destroy_window(const char *winname) {
+#ifdef CVK_HIGHGUI_UNAVAILABLE
+    (void)winname;
+#else
+    guarded([&]() -> cvk_mat_t * {
+        cv::destroyWindow(winname);
+        return nullptr;
+    });
+#endif
+}
+
+void cvk_destroy_all_windows(void) {
+#ifndef CVK_HIGHGUI_UNAVAILABLE
+    guarded([&]() -> cvk_mat_t * {
+        cv::destroyAllWindows();
+        return nullptr;
+    });
+#endif
+}

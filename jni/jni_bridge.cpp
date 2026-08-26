@@ -1653,3 +1653,47 @@ Java_cn_enaium_opencv_Jni_grabCut(JNIEnv *, jobject, jlong img, jlong mask,
                  as_mat(bgd_model), as_mat(fgd_model), iters, mode);
 }
 } /* extern "C" */
+
+
+// ------------------------------------------------ highgui (desktop only)
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_namedWindow(JNIEnv *env, jobject, jstring winname,
+                                      jint flags) {
+    const char *utf = env->GetStringUTFChars(winname, nullptr);
+    cvk_named_window(utf, flags);
+    env->ReleaseStringUTFChars(winname, utf);
+}
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_resizeWindow(JNIEnv *env, jobject, jstring winname,
+                                       jint width, jint height) {
+    const char *utf = env->GetStringUTFChars(winname, nullptr);
+    cvk_resize_window(utf, width, height);
+    env->ReleaseStringUTFChars(winname, utf);
+}
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_imshow(JNIEnv *env, jobject, jstring winname,
+                                 jlong mat) {
+    const char *utf = env->GetStringUTFChars(winname, nullptr);
+    cvk_imshow(utf, as_mat(mat));
+    env->ReleaseStringUTFChars(winname, utf);
+}
+
+JNIEXPORT jint JNICALL
+Java_cn_enaium_opencv_Jni_waitKey(JNIEnv *, jobject, jint delay_ms) {
+    return cvk_wait_key(delay_ms);
+}
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_destroyWindow(JNIEnv *env, jobject, jstring winname) {
+    const char *utf = env->GetStringUTFChars(winname, nullptr);
+    cvk_destroy_window(utf);
+    env->ReleaseStringUTFChars(winname, utf);
+}
+
+JNIEXPORT void JNICALL
+Java_cn_enaium_opencv_Jni_destroyAllWindows(JNIEnv *, jobject) {
+    cvk_destroy_all_windows();
+}

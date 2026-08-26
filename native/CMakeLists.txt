@@ -49,7 +49,13 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers) and features (corner
 # detectors) are OpenCV 5's new homes for classic imgproc APIs the binding
 # exposes; imgproc already pulls them in, features is added explicitly.
-set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
+# highgui is desktop-only: it adds native window backends (Win32UI/Cocoa/
+# GTK) that do not exist on Android, so the Android build keeps the lean list.
+if(ANDROID)
+    set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
+else()
+    set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features,highgui" CACHE STRING "" FORCE)
+endif()
 
 foreach(_opt
         BUILD_TESTS
@@ -76,7 +82,6 @@ foreach(_opt
         WITH_GTK
         WITH_GTK_2_X
         WITH_QT
-        WITH_WIN32UI
         WITH_FFMPEG
         WITH_GSTREAMER
         WITH_MSMF
@@ -105,6 +110,16 @@ foreach(_opt
         WITH_HARFBUZZ)
     set(${_opt} OFF CACHE BOOL "" FORCE)
 endforeach()
+
+# Desktop window backends for highgui. Win32UI ships with every MinGW/
+# MSVC toolchain and Cocoa with Xcode; GTK would drag system packages into
+# the self-contained artifacts, so Linux stays headless by design.
+if(WIN32 AND NOT ANDROID)
+    set(WITH_WIN32UI ON CACHE BOOL "" FORCE)
+endif()
+if(APPLE AND NOT ANDROID)
+    set(WITH_COCOA ON CACHE BOOL "" FORCE)
+endif()
 
 set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
 set(BUILD_PNG ON CACHE BOOL "" FORCE)
@@ -135,12 +150,21 @@ target_include_directories(cvk_shim PRIVATE
         "${OPENCV_SOURCE_DIR}/modules/flann/include"
         "${OPENCV_SOURCE_DIR}/modules/imgcodecs/include"
         "${OPENCV_SOURCE_DIR}/modules/features/include"
+        # highgui is compiled on desktop targets only, but its public header
+        # is needed by the shim translation unit everywhere (the Android
+        # no-op branch never references it at runtime).
+        "${OPENCV_SOURCE_DIR}/modules/highgui/include"
         # Configure-time generated headers (opencv_modules.hpp, cvconfig.h).
         "${CMAKE_BINARY_DIR}")
 # The shim only ever sees plain C ABI calls from consumers, but it links
 # against C++ OpenCV, hence C++ runtime linkage via the opencv targets.
-target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
-        opencv_features opencv_imgcodecs)
+if(ANDROID)
+    target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
+            opencv_features opencv_imgcodecs)
+else()
+    target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
+            opencv_features opencv_imgcodecs opencv_highgui)
+endif()
 
 if(CVK_BUILD_JNI)
     if(CVK_JNI_BRIDGE STREQUAL "")
