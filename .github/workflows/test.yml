@@ -45,6 +45,17 @@ jobs:
           # checksum list; validation would fail every job.
           validate-wrappers: false
 
+      - name: Cache native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-*
+            opencv-kmp/build/native/*
+            jni/jvm/*/build/cmake-jni/*
+            jni/jvm/*/build/jni-native/*
+          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'opencv/CMakeLists.txt') }}
+          restore-keys: native-${{ runner.os }}-
+
       - name: Decode signing key
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
@@ -104,9 +115,34 @@ jobs:
           # checksum list; validation would fail every job.
           validate-wrappers: false
 
+      # OpenCV static builds are the slow part (~1h cold); cache them so
+      # repeated runs reuse the compiled archives and klibs.
+      - name: Cache native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-*
+            opencv-kmp/build/native/*
+            jni/jvm/*/build/cmake-jni/*
+            jni/jvm/*/build/jni-native/*
+          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'opencv/CMakeLists.txt') }}
+          restore-keys: native-${{ runner.os }}-
+
       - name: Decode signing key
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
+
+      # Tests first: jvmTest and linuxX64Test only need the linux-x86_64 JNI
+      # artifact and the linuxX64 klib, so they start after one OpenCV build
+      # instead of waiting for every cross target.
+      - name: Run JVM tests
+        run: ./gradlew --no-daemon :opencv-kmp:jvmTest
+
+      - name: Run native tests (linuxX64)
+        run: ./gradlew --no-daemon :opencv-kmp:linuxX64Test
+
+      - name: Run example (linuxX64)
+        run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
 
       - name: Publish linux and mingw platforms to Maven Local
         run: >
@@ -119,15 +155,6 @@ jobs:
           :opencv-kmp:publishMingwX64PublicationToMavenLocal
           :jni-jvm-linux-x86_64:publishToMavenLocal
           :jni-jvm-linux-aarch64:publishToMavenLocal
-
-      - name: Run JVM tests
-        run: ./gradlew --no-daemon :opencv-kmp:jvmTest
-
-      - name: Run native tests (linuxX64)
-        run: ./gradlew --no-daemon :opencv-kmp:linuxX64Test
-
-      - name: Run example (linuxX64)
-        run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
 
   test-windows:
     name: Test Windows x64
