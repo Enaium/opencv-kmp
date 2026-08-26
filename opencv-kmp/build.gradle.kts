@@ -151,6 +151,21 @@ kotlin {
     androidNativeX86()
 
     // ==================== cinterop for all native targets ====================
+    // Linux highgui (GTK3) symbols are provided by system shared libraries,
+    // so every linux binary must link them explicitly; the archives embed
+    // only the OpenCV object files.
+    targets.withType<KotlinNativeTarget>().configureEach {
+        if (name == "linuxX64" || name == "linuxArm64") {
+            binaries.configureEach {
+                linkerOpts(
+                    "-lgtk-3", "-lgdk-3", "-lpangocairo-1.0", "-lpango-1.0",
+                    "-lharfbuzz", "-latk-1.0", "-lcairo-gobject", "-lcairo",
+                    "-lgdk_pixbuf-2.0", "-lgio-2.0", "-lgobject-2.0", "-lglib-2.0",
+                )
+            }
+        }
+    }
+
     targets.withType<KotlinNativeTarget> {
         val targetName = this.name
         // KleidiCV ships for AArch64 only; carotene (tegra_hal) covers 32-bit ARM too.
