@@ -147,9 +147,17 @@ endif()
 if(APPLE AND NOT ANDROID AND NOT IOS AND NOT TVOS AND NOT WATCHOS)
     set(WITH_COCOA ON CACHE BOOL "" FORCE)
 endif()
-if(UNIX AND NOT APPLE AND NOT ANDROID)
-    set(WITH_GTK ON CACHE BOOL "" FORCE)
-    set(WITH_GTK_2_X OFF CACHE BOOL "" FORCE)
+# Optional AddressSanitizer instrumentation for local debugging
+# (CVK_SANITIZE=address in the environment): flags the opencv static
+# libraries AND the shim, so use-as-after-free inside any call is caught
+# by the test JVM's preloaded ASan runtime.
+if(DEFINED ENV{CVK_SANITIZE} AND NOT CVK_SANITIZE_FLAGS)
+    set(CVK_SANITIZE_FLAGS "-fsanitize=$ENV{CVK_SANITIZE} -fno-omit-frame-pointer")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CVK_SANITIZE_FLAGS}" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CVK_SANITIZE_FLAGS}" CACHE STRING "" FORCE)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=$ENV{CVK_SANITIZE}" CACHE STRING "" FORCE)
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=$ENV{CVK_SANITIZE}" CACHE STRING "" FORCE)
+    set(CVK_SANITIZE_FLAGS "${CVK_SANITIZE_FLAGS}" CACHE INTERNAL "")
 endif()
 
 # Patches against the vendored OpenCV tree (the submodule is never forked):

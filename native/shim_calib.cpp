@@ -140,6 +140,18 @@ bool mats_to_wire(std::vector<cv::Mat> &src, cv::Mat &out) {
 
 extern "C" {
 
+/**
+ * OpenCV 5 writes the distortion-coefficient output as a 1xN row vector;
+ * the bindings (and the Android SDK contract) read it as the classic Nx1
+ * column vector. Normalize the layout so element access by row stays
+ * in-bounds. cv::Mat::reshape keeps the buffer intact for 1xN -> Nx1.
+ */
+static void normalize_dist_coeffs(cv::Mat &dc) {
+    if (dc.rows == 1 && dc.cols > 1) {
+        dc = dc.reshape(1, dc.cols);
+    }
+}
+
 cvk_mat_t *cvk_init_camera_matrix_2d(const cvk_mat_t *object_points,
                                      const cvk_mat_t *image_points,
                                      int image_width, int image_height,
@@ -182,6 +194,7 @@ double cvk_calibrate_camera(const cvk_mat_t *object_points,
             objMats, imgMats, cv::Size(image_width, image_height), *cm, *dc,
             rvecsOut, tvecsOut, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -219,6 +232,7 @@ double cvk_calibrate_camera_extended(const cvk_mat_t *object_points,
             objMats, imgMats, cv::Size(image_width, image_height), *cm, *dc,
             rvecsOut, tvecsOut, *sdi, *sde, *pve, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -251,6 +265,7 @@ double cvk_calibrate_camera_ro(const cvk_mat_t *object_points,
             objMats, imgMats, cv::Size(image_width, image_height), i_fixed_point,
             *cm, *dc, rvecsOut, tvecsOut, *nop, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -292,6 +307,7 @@ double cvk_calibrate_camera_ro_extended(const cvk_mat_t *object_points,
             objMats, imgMats, cv::Size(image_width, image_height), i_fixed_point,
             *cm, *dc, rvecsOut, tvecsOut, *nop, *sdi, *sde, *sdop, *pve, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -327,10 +343,13 @@ double cvk_stereo_calibrate(const cvk_mat_t *object_points,
         if (!wire_to_mats(*obj, objMats)) return std::numeric_limits<double>::quiet_NaN();
         if (!wire_to_mats(*img1, img1Mats)) return std::numeric_limits<double>::quiet_NaN();
         if (!wire_to_mats(*img2, img2Mats)) return std::numeric_limits<double>::quiet_NaN();
-        return cv::stereoCalibrate(
+        double err = cv::stereoCalibrate(
             objMats, img1Mats, img2Mats, *cm1, *dc1, *cm2, *dc2,
             cv::Size(image_width, image_height), *R, *T, *E, *F, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc1);
+        normalize_dist_coeffs(*dc2);
+        return err;
     });
 }
 
@@ -365,10 +384,13 @@ double cvk_stereo_calibrate_per_view(const cvk_mat_t *object_points,
         if (!wire_to_mats(*obj, objMats)) return std::numeric_limits<double>::quiet_NaN();
         if (!wire_to_mats(*img1, img1Mats)) return std::numeric_limits<double>::quiet_NaN();
         if (!wire_to_mats(*img2, img2Mats)) return std::numeric_limits<double>::quiet_NaN();
-        return cv::stereoCalibrate(
+        double err = cv::stereoCalibrate(
             objMats, img1Mats, img2Mats, *cm1, *dc1, *cm2, *dc2,
             cv::Size(image_width, image_height), *R, *T, *E, *F, *pve, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc1);
+        normalize_dist_coeffs(*dc2);
+        return err;
     });
 }
 
@@ -412,6 +434,8 @@ double cvk_stereo_calibrate_extended(const cvk_mat_t *object_points,
             cv::Size(image_width, image_height), *R, *T, *E, *F, rvecsOut, tvecsOut,
             *pve, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*dc1);
+        normalize_dist_coeffs(*dc2);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -506,6 +530,8 @@ double cvk_register_cameras_extended(const cvk_mat_t *object_points1,
             static_cast<cv::CameraModel>(camera_model2), *R, *T, *E, *F,
             rvecsOut, tvecsOut, *pve, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*const_cast<cv::Mat *>(dc1));
+        normalize_dist_coeffs(*const_cast<cv::Mat *>(dc2));
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -536,6 +562,7 @@ double cvk_fisheye_calibrate(const cvk_mat_t *object_points,
             objMats, imgMats, cv::Size(image_width, image_height), *K, *D,
             rvecsOut, tvecsOut, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*D);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;
@@ -576,6 +603,8 @@ double cvk_fisheye_stereo_calibrate(const cvk_mat_t *object_points,
             objMats, img1Mats, img2Mats, *K1, *D1, *K2, *D2,
             cv::Size(image_width, image_height), *R, *T, rvecsOut, tvecsOut, flags,
             cv::TermCriteria(criteria_type, criteria_max_count, criteria_epsilon));
+        normalize_dist_coeffs(*D1);
+        normalize_dist_coeffs(*D2);
         if (!mats_to_wire(rvecsOut, *rv)) return std::numeric_limits<double>::quiet_NaN();
         if (!mats_to_wire(tvecsOut, *tv)) return std::numeric_limits<double>::quiet_NaN();
         return err;

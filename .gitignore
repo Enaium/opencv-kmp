@@ -46,3 +46,6 @@ bin/
 .DS_Store
 local.properties
 gradle/gradle-daemon-jvm.properties
+
+# Docker container test home (mounted from the repo)
+/.gradle-container/
