@@ -178,9 +178,20 @@ foreach(CVK_PATCH IN LISTS CVK_OPENCV_PATCHES)
             OUTPUT_QUIET ERROR_QUIET
         )
         if(NOT CVK_PATCH_RES EQUAL 0)
-            message(FATAL_ERROR
-                "Failed to apply ${CVK_PATCH} in ${CVK_REPO_ROOT}; "
-                "reset the opencv submodule to a pristine checkout")
+            # Concurrent configure tasks (different targets in one Gradle
+            # invocation) can race on the shared working tree: re-check
+            # whether the other process applied the patch in between.
+            execute_process(
+                COMMAND git apply --reverse --check "${CVK_PATCH}"
+                WORKING_DIRECTORY "${CVK_REPO_ROOT}"
+                RESULT_VARIABLE CVK_PATCH_REV2
+                OUTPUT_QUIET ERROR_QUIET
+            )
+            if(NOT CVK_PATCH_REV2 EQUAL 0)
+                message(FATAL_ERROR
+                    "Failed to apply ${CVK_PATCH} in ${CVK_REPO_ROOT}; "
+                    "reset the opencv submodule to a pristine checkout")
+            endif()
         endif()
         message(STATUS "cvk: applied ${CVK_PATCH}")
     else()
