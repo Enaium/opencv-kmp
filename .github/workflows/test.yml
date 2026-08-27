@@ -53,6 +53,10 @@ jobs:
           # checksum list; validation would fail every job.
           validate-wrappers: false
 
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache native builds
         uses: actions/cache@v4
         with:
@@ -61,8 +65,10 @@ jobs:
             opencv-kmp/build/native/*
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'jni/jni_bridge.cpp') }}
-          restore-keys: native-${{ runner.os }}-
+          key: native-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
+          # No restore-keys: fuzzy-restoring a tree configured from different
+          # sources produced a mixed dnn build (undefined opt_NEON symbols).
+          # A key miss rebuilds cold instead of mixing.
 
       - name: Decode signing key
         run: |
@@ -142,6 +148,10 @@ jobs:
 
       # OpenCV static builds are the slow part (~1h cold); cache them so
       # repeated runs reuse the compiled archives and klibs.
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache native builds
         uses: actions/cache@v4
         with:
@@ -150,8 +160,10 @@ jobs:
             opencv-kmp/build/native/*
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.os }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'jni/jni_bridge.cpp') }}
-          restore-keys: native-${{ runner.os }}-
+          key: native-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
+          # No restore-keys: fuzzy-restoring a tree configured from different
+          # sources produced a mixed dnn build (undefined opt_NEON symbols).
+          # A key miss rebuilds cold instead of mixing.
 
       - name: Decode signing key
         run: |
@@ -211,6 +223,10 @@ jobs:
         with:
           validate-wrappers: false
 
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache native builds
         uses: actions/cache@v4
         with:
@@ -219,8 +235,9 @@ jobs:
             opencv-kmp/build/native/*
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.arch }}-${{ hashFiles('native/CMakeLists.txt', 'native/opencv_shim.cpp', 'native/include/opencv_kmp.h', 'jni/jni_bridge.cpp') }}
-          restore-keys: native-${{ runner.arch }}-
+          key: native-${{ runner.arch }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
+          # No restore-keys: fuzzy-restoring a tree configured from different
+          # sources produced a mixed dnn build; rebuild cold instead.
 
       - name: Run JVM tests (linux-aarch64 JNI)
         run: ./gradlew --no-daemon :opencv-kmp:jvmTest

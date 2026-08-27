@@ -37,6 +37,7 @@
 #include "opencv_kmp_objdetect.h"
 
 #include <cstdint>
+#include <cstring>
 #include <vector>
 
 static inline cvk_mat_t *as_mat(jlong handle) {
