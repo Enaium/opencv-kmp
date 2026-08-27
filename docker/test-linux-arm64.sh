@@ -18,11 +18,13 @@ docker build -t opencv-kmp-linux-arm64 docker/
 # The OpenCV submodule patches are applied automatically by
 # native/CMakeLists.txt on configure, so no explicit git apply here.
 
-echo "==> Running linuxArm64 native tests + JVM tests (arm64 JNI) in container"
+echo "==> Running JVM tests against the native arm64 JNI artifact in container"
+# Kotlin/Native has no linux-aarch64 host distribution (this Kotlin
+# version), so the linuxArm64 klib tests cannot run here either; the
+# container verifies the arm64 JNI library end to end.
 docker run --rm \
     -v "$(pwd):/workspace" \
     -w /workspace \
     opencv-kmp-linux-arm64 \
     ./gradlew --no-daemon \
-        :opencv-kmp:jvmTest \
-        :opencv-kmp:linuxArm64Test
+        :opencv-kmp:jvmTest

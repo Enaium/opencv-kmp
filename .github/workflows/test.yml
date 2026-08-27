@@ -240,10 +240,10 @@ jobs:
           # sources produced a mixed dnn build; rebuild cold instead.
 
       - name: Run JVM tests (linux-aarch64 JNI)
+        # Kotlin/Native does not support linux-aarch64 as a build host in
+        # this Kotlin version, so an arm64 runner cannot run the linuxArm64
+        # klib tests; it exercises the native arm64 JNI artifact instead.
         run: ./gradlew --no-daemon :opencv-kmp:jvmTest
-
-      - name: Run native tests (linuxArm64)
-        run: ./gradlew --no-daemon :opencv-kmp:linuxArm64Test
 
   test-windows:
     name: Test Windows x64
