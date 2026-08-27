@@ -30,10 +30,22 @@ kotlin {
         }
     }
 
-    macosArm64 { binaries.executable() }
-    macosX64 { binaries.executable() }
+    // Apple mobile executables exist purely to link-test the embedded
+    // OpenCV static library on each slice (device targets cannot run
+    // locally; simulator slices run in CI).
+    iosArm64 { binaries.executable() }
+    iosSimulatorArm64 { binaries.executable() }
+    iosX64 { binaries.executable() }
+
+    tvosArm64 { binaries.executable() }
+    tvosSimulatorArm64 { binaries.executable() }
+
+    watchosArm64 { binaries.executable() }
+    watchosSimulatorArm64 { binaries.executable() }
+    watchosDeviceArm64 { binaries.executable() }
 
     linuxX64 { binaries.executable() }
+
     // Link-tested on Linux CI with the aarch64 cross toolchain; not runnable
     // there. The GNU C++ runtime the OpenCV archives need is embedded in the
     // klib itself (libstdc++_linux_arm64).

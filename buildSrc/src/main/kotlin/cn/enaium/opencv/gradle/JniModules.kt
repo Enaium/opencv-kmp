@@ -98,9 +98,16 @@ object JniModules {
                     "aarch64" -> "arm64"
                     else -> parts.last()
                 }
-                (host.isMacOsX && arch in setOf("arm64", "x86_64")) to listOf(
-                    "-DCMAKE_SYSTEM_NAME=Darwin",
-                    "-DCMAKE_OSX_ARCHITECTURES=${if (arch == "arm64") "arm64" else "x86_64"}",
+                // Build only when the HOST arch matches the target: OpenCV's
+                // MLAS module derives its target from the host CPU (CMake
+                // ignores CMAKE_SYSTEM_PROCESSOR overrides in non-cross Darwin
+                // mode), so an arm64 host would compile ARM64 dnn kernels for
+                // a darwin-x86_64 artifact. ort x86_64 darwin libs are built
+                // on Intel runners (macos-13) and arm64 ones on arm64 runners.
+                (host.isMacOsX && hostArch in setOf("aarch64", "arm64") && arch == "arm64" ||
+                        host.isMacOsX && hostArch == "x86_64") to listOf(
+                    "-DCMAKE_OSX_ARCHITECTURES=$arch",
+                    "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0",
                 ) + if (arch == "x86_64") listOf(
                     "-DWITH_KLEIDICV=OFF",
                     "-DWITH_CAROTENE=OFF",
@@ -221,6 +228,12 @@ object JniModules {
                 project.rootProject.file("native/opencv_shim.cpp"),
                 project.rootProject.file("jni/jni_bridge.cpp"),
             )
+            // Every per-module shim and header feeds the merged library; a
+            // missing input here silently keeps a stale dylib around.
+            val nativeShims = project.rootProject.fileTree("native") {
+                include("shim_*.cpp", "include/*.h")
+            }
+            inputs.files(nativeShims)
             inputs.dir(project.rootProject.file("opencv"))
             outputs.file(nativeOutputDir.map { it.file(libFile) })
         }

@@ -36,28 +36,35 @@ if(NOT EXISTS "${OPENCV_SOURCE_DIR}/CMakeLists.txt")
         (pass -DOPENCV_SOURCE_DIR=<path>)")
 endif()
 
+# The OpenCV checkout lives next to this project as a submodule; the patches
+# are applied against that working tree (see the block below).
+get_filename_component(CVK_REPO_ROOT "${OPENCV_SOURCE_DIR}/.." ABSOLUTE)
+set(CVK_OPENCV_PATCHES
+    "${CMAKE_CURRENT_LIST_DIR}/cmake/mlas-subproject.patch"
+    "${CMAKE_CURRENT_LIST_DIR}/cmake/imgcodecs-appletv.patch"
+)
+
 file(MAKE_DIRECTORY "${CVK_OUTPUT_DIR}")
 
 # ---------------------------------------------------------------------------
-# OpenCV: static, minimal, offline. BUILD_LIST keeps core/imgproc/imgcodecs;
-# bundled zlib/libpng/libjpeg-turbo satisfy imgcodecs so no system headers or
-# network downloads are involved. Everything else that could pull extra
-# dependencies is switched off; ENABLE_PIC stays ON because the static objects
-# end up inside shared libraries (JNI) and PIE executables (Kotlin/Native).
+# OpenCV: static, minimal, offline. BUILD_LIST keeps every module the binding
+# exposes; bundled zlib/libpng/libjpeg-turbo satisfy imgcodecs and bundled
+# protobuf satisfies dnn, so no system headers or network downloads are
+# involved. Everything else that could pull extra dependencies is switched
+# off; ENABLE_PIC stays ON because the static objects end up inside shared
+# libraries (JNI) and PIE executables (Kotlin/Native).
 # ---------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-# geometry (contours, affine/perspective helpers) and features (corner
-# detectors) are OpenCV 5's new homes for classic imgproc APIs the binding
-# exposes; imgproc already pulls them in, features is added explicitly.
-# highgui needs a real window backend: Win32UI on Windows, Cocoa on macOS,
-# GTK on Linux. Android has no desktop GUI so it keeps the lean module list
-# (the shim provides no-op stubs there). GTK3 headers/libraries must be
-# installed on the build host (CI installs libgtk-3-dev).
-if(ANDROID)
-    set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features" CACHE STRING "" FORCE)
-else()
-    set(BUILD_LIST "core,geometry,imgproc,imgcodecs,features,highgui" CACHE STRING "" FORCE)
-endif()
+# geometry (contours, affine/perspective helpers), features (corner
+# detectors) and calib are OpenCV 5's new homes for classic imgproc APIs the
+# binding exposes. ptcloud requires highgui, so every target compiles it: a
+# real window backend (Win32UI/Cocoa/GTK3) on desktop, the built-in "NONE"
+# stub on Android and Apple mobile where the shim reports unavailability
+# through no-op stubs. GTK3 headers/libraries must be installed on Linux
+# build hosts (CI installs libgtk-3-dev).
+set(BUILD_LIST
+        "core,geometry,imgproc,imgcodecs,features,photo,video,videoio,objdetect,dnn,stereo,ptcloud,calib,highgui"
+        CACHE STRING "" FORCE)
 
 foreach(_opt
         BUILD_TESTS
@@ -113,13 +120,23 @@ foreach(_opt
     set(${_opt} OFF CACHE BOOL "" FORCE)
 endforeach()
 
-# Desktop window backends for highgui. Win32UI ships with every MinGW/
-# MSVC toolchain, Cocoa with Xcode, and GTK3 is the Linux backend (the CI
-# runner installs libgtk-3-dev).
+# Apple mobile platforms have no AVFoundation-based videoio in this binding
+# (videoio keeps its API but with no backend there, same as Linux/Windows;
+# macOS keeps AVFoundation so VideoCapture/VideoWriter work for real).
+# CMake only defines IOS (not TVOS/WATCHOS), so branch on the system name
+# directly for the Apple-mobile targets where videoio's AVFoundation backend
+# is unavailable (its macOS implementation would otherwise compile).
+if(CMAKE_SYSTEM_NAME MATCHES "iOS|tvOS|watchOS")
+    set(WITH_AVFOUNDATION OFF CACHE BOOL "" FORCE)
+endif()
+
+# Desktop window backends for highgui. Win32UI ships with every MinGW/MSVC
+# toolchain, Cocoa with Xcode, and GTK3 is the Linux backend (CI installs
+# libgtk-3-dev). Android and Apple mobile keep the "NONE" stub backend.
 if(WIN32 AND NOT ANDROID)
     set(WITH_WIN32UI ON CACHE BOOL "" FORCE)
 endif()
-if(APPLE AND NOT ANDROID)
+if(APPLE AND NOT ANDROID AND NOT IOS AND NOT TVOS AND NOT WATCHOS)
     set(WITH_COCOA ON CACHE BOOL "" FORCE)
 endif()
 if(UNIX AND NOT APPLE AND NOT ANDROID)
@@ -127,11 +144,48 @@ if(UNIX AND NOT APPLE AND NOT ANDROID)
     set(WITH_GTK_2_X OFF CACHE BOOL "" FORCE)
 endif()
 
-set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
-set(BUILD_PNG ON CACHE BOOL "" FORCE)
-set(BUILD_JPEG ON CACHE BOOL "" FORCE)
-set(WITH_PNG ON CACHE BOOL "" FORCE)
-set(WITH_JPEG ON CACHE BOOL "" FORCE)
+# Patches against the vendored OpenCV tree (the submodule is never forked):
+#   mlas-subproject.patch  - 3rdparty/mlas path fixes for add_subdirectory
+#     use (without it: "No SOURCES given to target: opencv_dnn_mlas") plus
+#     Apple architecture detection from CMAKE_OSX_ARCHITECTURES (the host
+#     probe reports arm64 even when targeting x86_64).
+#   imgcodecs-appletv.patch - exclude macOS-only sources on tvOS/watchOS
+#     (upstream guards only IOS/XROS; cmake defines no TVOS/WATCHOS flags).
+# Applied idempotently before the subdir is configured; a dirty working tree
+# that already carries them is left untouched.
+foreach(CVK_PATCH IN LISTS CVK_OPENCV_PATCHES)
+    execute_process(
+        COMMAND git apply --reverse --check "${CVK_PATCH}"
+        WORKING_DIRECTORY "${CVK_REPO_ROOT}"
+        RESULT_VARIABLE CVK_PATCH_REV
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if(NOT CVK_PATCH_REV EQUAL 0)
+        execute_process(
+            COMMAND git apply "${CVK_PATCH}"
+            WORKING_DIRECTORY "${CVK_REPO_ROOT}"
+            RESULT_VARIABLE CVK_PATCH_RES
+            OUTPUT_QUIET ERROR_QUIET
+        )
+        if(NOT CVK_PATCH_RES EQUAL 0)
+            message(FATAL_ERROR
+                "Failed to apply ${CVK_PATCH} in ${CVK_REPO_ROOT}; "
+                "reset the opencv submodule to a pristine checkout")
+        endif()
+        message(STATUS "cvk: applied ${CVK_PATCH}")
+    else()
+        message(STATUS "cvk: ${CVK_PATCH} already applied")
+    endif()
+endforeach()
+
+# CMake defines IOS but not TVOS/WATCHOS for those CMAKE_SYSTEM_NAME values;
+# OpenCV guards (imgcodecs excluding macOS-only sources, videoio backends)
+# test the matching platform variable, so define them for the whole pass.
+if(CMAKE_SYSTEM_NAME STREQUAL "tvOS")
+    set(TVOS 1)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "watchOS")
+    set(WATCHOS 1)
+endif()
 
 add_subdirectory("${OPENCV_SOURCE_DIR}" opencv-build EXCLUDE_FROM_ALL)
 
@@ -141,9 +195,19 @@ add_subdirectory("${OPENCV_SOURCE_DIR}" opencv-build EXCLUDE_FROM_ALL)
 set(CVK_SKIP_STDCPP_SHIM OFF CACHE BOOL
         "Drop the libstdc++ compat shims (mingwX64 embeds the full GNU runtime)")
 
-add_library(cvk_shim STATIC opencv_shim.cpp glibc_compat.c stdcpp_compat.cpp)
+# Per-module shim translations (shim_<module>.cpp) are globbed so parallel
+# module work can add files without touching this file.
+file(GLOB CVK_SHIM_MODULE_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_LIST_DIR}/shim_*.cpp")
+add_library(cvk_shim STATIC opencv_shim.cpp glibc_compat.c stdcpp_compat.cpp
+        ${CVK_SHIM_MODULE_SOURCES})
 if(CVK_SKIP_STDCPP_SHIM)
     target_compile_definitions(cvk_shim PRIVATE CVK_SKIP_STDCPP_SHIM)
+endif()
+# highgui is a no-op stub on Android and Apple mobile (the built-in "NONE"
+# backend); the shim reports unavailability there instead of calling it.
+if(ANDROID OR IOS OR TVOS OR WATCHOS)
+    target_compile_definitions(cvk_shim PRIVATE CVK_NO_HIGHGUI)
 endif()
 target_include_directories(cvk_shim PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/include"
@@ -156,27 +220,35 @@ target_include_directories(cvk_shim PRIVATE
         "${OPENCV_SOURCE_DIR}/modules/flann/include"
         "${OPENCV_SOURCE_DIR}/modules/imgcodecs/include"
         "${OPENCV_SOURCE_DIR}/modules/features/include"
-        # highgui is compiled on desktop targets only, but its public header
-        # is needed by the shim translation unit everywhere (the Android
-        # no-op branch never references it at runtime).
+        "${OPENCV_SOURCE_DIR}/modules/calib/include"
+        "${OPENCV_SOURCE_DIR}/modules/photo/include"
+        "${OPENCV_SOURCE_DIR}/modules/video/include"
+        "${OPENCV_SOURCE_DIR}/modules/videoio/include"
+        "${OPENCV_SOURCE_DIR}/modules/objdetect/include"
+        "${OPENCV_SOURCE_DIR}/modules/stereo/include"
+        "${OPENCV_SOURCE_DIR}/modules/ptcloud/include"
+        "${OPENCV_SOURCE_DIR}/modules/dnn/include"
         "${OPENCV_SOURCE_DIR}/modules/highgui/include"
         # Configure-time generated headers (opencv_modules.hpp, cvconfig.h).
         "${CMAKE_BINARY_DIR}")
 # The shim only ever sees plain C ABI calls from consumers, but it links
 # against C++ OpenCV, hence C++ runtime linkage via the opencv targets.
-if(ANDROID)
-    target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
-            opencv_features opencv_imgcodecs)
-else()
-    target_link_libraries(cvk_shim PUBLIC opencv_core opencv_geometry opencv_imgproc
-            opencv_features opencv_imgcodecs opencv_highgui)
-endif()
+target_link_libraries(cvk_shim PUBLIC
+        opencv_core opencv_geometry opencv_imgproc opencv_features opencv_flann
+        opencv_imgcodecs opencv_highgui opencv_calib opencv_photo opencv_video
+        opencv_videoio opencv_objdetect opencv_stereo opencv_ptcloud opencv_dnn)
 
 if(CVK_BUILD_JNI)
     if(CVK_JNI_BRIDGE STREQUAL "")
         message(FATAL_ERROR "CVK_BUILD_JNI=ON requires -DCVK_JNI_BRIDGE=<jni_bridge.cpp>")
     endif()
-    add_library(opencv_jni SHARED "${CVK_JNI_BRIDGE}")
+    # Per-module JNI bridges (jni/jni_<module>.cpp) are globbed in as well;
+    # each implements Java_cn_enaium_opencv_Jni<Module>_* on top of the
+    # cvk_ ABI.
+    file(GLOB CVK_JNI_MODULE_SOURCES CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_LIST_DIR}/../jni/jni_*.cpp")
+    list(FILTER CVK_JNI_MODULE_SOURCES EXCLUDE REGEX "jni_bridge\.cpp$")
+    add_library(opencv_jni SHARED "${CVK_JNI_BRIDGE}" ${CVK_JNI_MODULE_SOURCES})
     target_include_directories(opencv_jni PRIVATE
             "${CMAKE_CURRENT_LIST_DIR}/include"
             "${CVK_JNI_INCLUDE}"
@@ -213,12 +285,10 @@ endif()
 
 set(CVK_COPIED_LIBS "")
 
-set(CVK_COPY_MODULES cvk_shim opencv_imgcodecs opencv_features opencv_imgproc
+set(CVK_COPY_MODULES cvk_shim opencv_ptcloud opencv_calib opencv_objdetect
+        opencv_dnn opencv_video opencv_stereo opencv_photo opencv_highgui
+        opencv_videoio opencv_imgcodecs opencv_features opencv_imgproc
         opencv_flann opencv_geometry opencv_core)
-# highgui is built on desktop targets only (Android keeps the lean list).
-if(NOT ANDROID)
-    list(APPEND CVK_COPY_MODULES opencv_highgui)
-endif()
 
 foreach(_t ${CVK_COPY_MODULES})
     set(_out "${CVK_OUTPUT_DIR}/lib${_t}.a")
@@ -255,6 +325,19 @@ foreach(_n libjpeg-turbo libpng zlib)
             VERBATIM)
     list(APPEND CVK_COPIED_LIBS "${_out}")
 endforeach()
+
+# dnn's bundled protobuf (separate 3rdparty archive referenced by
+# opencv_dnn; absent when dnn is not in the build).
+if(TARGET libprotobuf)
+    # build.gradle.kts embeds archives as -staticLibrary lib$it.a, so the
+    # copy must carry the same lib prefix as the module archives.
+    set(_out "${CVK_OUTPUT_DIR}/liblibprotobuf.a")
+    add_custom_command(OUTPUT "${_out}"
+            COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:libprotobuf>" "${_out}"
+            DEPENDS libprotobuf
+            VERBATIM)
+    list(APPEND CVK_COPIED_LIBS "${_out}")
+endif()
 
 # MinGW klibs: Kotlin/Native's bundled libstdc++ for gnu_x86_64_windows
 # predates the host cross-GCC, so the real static runtime travels with the

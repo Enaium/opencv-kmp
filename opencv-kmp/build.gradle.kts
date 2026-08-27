@@ -69,6 +69,14 @@ fun androidNdkPath(): String? {
 fun canBuildNativeTarget(targetName: String): Boolean {
     return when {
         hostOs.isMacOsX && targetName.startsWith("macos") -> true
+        // Apple mobile klibs embed an OpenCV static library cross-compiled
+        // with the Xcode toolchain, so any macOS host with Xcode can build
+        // them (simulator and device slices alike).
+        hostOs.isMacOsX && targetName in setOf(
+            "iosArm64", "iosSimulatorArm64", "iosX64",
+            "tvosArm64", "tvosSimulatorArm64",
+            "watchosArm64", "watchosSimulatorArm64", "watchosDeviceArm64",
+        ) -> true
         hostOs.isLinux && targetName == "linuxX64" -> true
         hostOs.isLinux && targetName == "linuxArm64" &&
                 (hostArch == "aarch64" || hostArch == "arm64" || hasAarch64CrossToolchain()) -> true
@@ -140,6 +148,17 @@ kotlin {
     macosArm64()
     macosX64()
 
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
+
+    tvosArm64()
+    tvosSimulatorArm64()
+
+    watchosArm64()
+    watchosSimulatorArm64()
+    watchosDeviceArm64()
+
     linuxX64()
     linuxArm64()
 
@@ -151,9 +170,12 @@ kotlin {
     androidNativeX86()
 
     // ==================== cinterop for all native targets ====================
-    // highgui window backends live in system libraries: GTK3 on Linux and
-    // the Cocoa/AppKit frameworks on macOS. The embedded archives reference
-    // them, so every desktop binary must link them explicitly.
+    // highgui window backends live in system libraries: GTK3 on Linux, the
+    // Cocoa/AppKit frameworks on macOS, and AVFoundation on macOS (videoio).
+    // The embedded archives reference them, so every desktop binary must
+    // link them explicitly. Apple mobile targets embed the OpenCV static
+    // libraries whose platform code touches Foundation/CoreFoundation and
+    // the media frameworks videoio binds.
     targets.withType<KotlinNativeTarget>().configureEach {
         when (name) {
             "linuxX64", "linuxArm64" -> binaries.configureEach {
@@ -167,7 +189,34 @@ kotlin {
                 )
             }
             "macosArm64", "macosX64" -> binaries.configureEach {
-                linkerOpts("-framework", "Cocoa", "-framework", "AppKit")
+                // Cocoa/AppKit: highgui. AVFoundation/CoreMedia/CoreVideo/
+                // QuartzCore: the videoio AVFoundation backend.
+                linkerOpts(
+                    "-framework", "Cocoa", "-framework", "AppKit",
+                    "-framework", "AVFoundation", "-framework", "CoreMedia",
+                    "-framework", "CoreVideo", "-framework", "QuartzCore",
+                )
+            }
+            "iosArm64", "iosSimulatorArm64", "iosX64" -> binaries.configureEach {
+                linkerOpts(
+                    "-framework", "Foundation", "-framework", "CoreFoundation",
+                    "-framework", "UIKit", "-framework", "ImageIO",
+                    "-framework", "CoreGraphics", "-framework", "QuartzCore",
+                )
+            }
+            "tvosArm64", "tvosSimulatorArm64" -> binaries.configureEach {
+                linkerOpts(
+                    "-framework", "Foundation", "-framework", "CoreFoundation",
+                    "-framework", "UIKit", "-framework", "ImageIO",
+                    "-framework", "CoreGraphics", "-framework", "QuartzCore",
+                )
+            }
+            "watchosArm64", "watchosSimulatorArm64", "watchosDeviceArm64" -> binaries.configureEach {
+                linkerOpts(
+                    "-framework", "Foundation", "-framework", "CoreFoundation",
+                    "-framework", "ImageIO", "-framework", "CoreGraphics",
+                    "-framework", "QuartzCore",
+                )
             }
         }
     }
@@ -175,12 +224,13 @@ kotlin {
     targets.withType<KotlinNativeTarget> {
         val targetName = this.name
         // KleidiCV ships for AArch64 only; carotene (tegra_hal) covers 32-bit ARM too.
-        val aarch64Targets = setOf("macosArm64", "linuxArm64", "androidNativeArm64")
+        val aarch64Targets = setOf(
+            "macosArm64", "linuxArm64", "androidNativeArm64",
+        )
         val arm32Targets = setOf("androidNativeArm32")
         val armHalLibs = listOf("kleidicv", "kleidicv_hal", "kleidicv_thread", "tegra_hal")
         val arm32HalLibs = listOf("tegra_hal")
         val canBuild = canBuildNativeTarget(targetName)
-
 
         compilations.getByName("main") {
             cinterops {
@@ -207,18 +257,26 @@ kotlin {
                         val embeddedLibs = listOf(
                             "cvk_shim",
                         ) +
-                                // highgui exists only on desktop builds
-                                // (Android keeps the lean module list)
-                                (if (targetName in setOf(
-                                        "macosArm64", "macosX64",
-                                        "linuxX64", "linuxArm64",
-                                        "mingwX64",
-                                    )) {
-                                    listOf("opencv_highgui")
-                                } else {
-                                    emptyList()
-                                }) +
+                                // highgui is compiled on every target (real
+                                // window backend on desktop, the built-in
+                                // "NONE" stub on Android/Apple mobile, which
+                                // ptcloud requires); the shim reports
+                                // unavailability through no-op stubs there.
+                                // SDK-parity modules, dependents first for
+                                // single-pass linkers: ptcloud needs highgui
+                                // + video + features, calib needs objdetect
+                                // + stereo, highgui needs videoio +
+                                // imgcodecs, dnn needs protobuf.
                                 listOf(
+                                    "opencv_ptcloud",
+                                    "opencv_calib",
+                                    "opencv_objdetect",
+                                    "opencv_dnn",
+                                    "opencv_video",
+                                    "opencv_stereo",
+                                    "opencv_photo",
+                                    "opencv_highgui",
+                                    "opencv_videoio",
                                     "opencv_imgcodecs",
                                     "opencv_features",
                                     "opencv_imgproc",
@@ -236,6 +294,7 @@ kotlin {
                                     "libjpeg-turbo",
                                     "libpng",
                                     "zlib",
+                                    "libprotobuf",
                                 ) +
                                 // mingwX64: K/N's bundled GNU runtime is too
                                 // old for the host-cross-compiled archives
@@ -329,6 +388,17 @@ kotlin {
     }
 }
 
+// The cvk_ shim and the JNI bridge are not designed for concurrent calls
+// from one process. JUnit Platform's parallel execution interleaves test
+// classes in a single worker and produces nondeterministic native-memory
+// corruption (the suite's CalibTest observed garbage distortion
+// coefficients whenever several classes ran at once). Keep it sequential.
+tasks.named("jvmTest", Test::class) {
+    maxParallelForks = 1
+    systemProperty("junit.jupiter.execution.parallel.enabled", "false")
+    systemProperty("junit.jupiter.execution.parallel.mode.default", "same_thread")
+}
+
 
 fun registerNativeBuildTasks(targetName: String, cmakeFlags: List<String> = emptyList()) {
     val outputDir = layout.buildDirectory.dir("native/$targetName").get().asFile
@@ -390,6 +460,35 @@ if (hostOs.isMacOsX) {
             "-DWITH_CAROTENE=OFF",
         ),
     )
+
+    // Apple mobile targets cross-compile OpenCV with the Xcode toolchain
+    // (CMAKE_SYSTEM_NAME drives CMake's IOS/TVOS/WATCHOS platform handling;
+    // the sysroot picks device vs simulator). Deployment targets match
+    // Kotlin/Native's own minimums for these targets.
+    // KleidiCV (AArch64 HAL) builds for the arm64 Apple slices; x86_64 and
+    // the arm64_32 watch device slice disable it (carotene covers arm32).
+    fun appleMobileFlags(systemName: String, sysroot: String, arch: String, min: String): List<String> =
+        listOf(
+            "-DCMAKE_OSX_SYSROOT=$sysroot",
+            "-DCMAKE_OSX_ARCHITECTURES=$arch",
+            // CMAKE_SYSTEM_NAME drives CMake's IOS/TVOS/WATCHOS platform
+            // flag; without it CMake treats the sysroot as a macOS build.
+            // No CMAKE_OSX_DEPLOYMENT_TARGET: setting it for these targets
+            // makes CMake fall out of the TVOS/WATCHOS platform handling and
+            // OpenCV then compiles its macOS-only sources.
+            "-DCMAKE_SYSTEM_NAME=$systemName",
+        )
+
+    val mobileKleidiOff = listOf("-DWITH_KLEIDICV=OFF", "-DWITH_CAROTENE=OFF")
+
+    registerNativeBuildTasks("iosArm64", appleMobileFlags("iOS", "iphoneos", "arm64", "13.0"))
+    registerNativeBuildTasks("iosSimulatorArm64", appleMobileFlags("iOS", "iphonesimulator", "arm64", "13.0"))
+    registerNativeBuildTasks("iosX64", appleMobileFlags("iOS", "iphonesimulator", "x86_64", "13.0") + mobileKleidiOff)
+    registerNativeBuildTasks("tvosArm64", appleMobileFlags("tvOS", "appletvos", "arm64", "13.0"))
+    registerNativeBuildTasks("tvosSimulatorArm64", appleMobileFlags("tvOS", "appletvsimulator", "arm64", "13.0"))
+    registerNativeBuildTasks("watchosArm64", appleMobileFlags("watchOS", "watchos", "arm64", "9.0"))
+    registerNativeBuildTasks("watchosSimulatorArm64", appleMobileFlags("watchOS", "watchsimulator", "arm64", "9.0"))
+    registerNativeBuildTasks("watchosDeviceArm64", appleMobileFlags("watchOS", "watchos", "arm64_32", "9.0") + mobileKleidiOff)
 } else if (hostOs.isLinux) {
     registerNativeBuildTasks(
         "linuxX64",

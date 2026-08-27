@@ -35,7 +35,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/geometry.hpp>
 #include <opencv2/features.hpp>
-#if !defined(__ANDROID__)
+#if !defined(CVK_NO_HIGHGUI)
 #include <opencv2/highgui.hpp>
 #endif
 
@@ -2340,22 +2340,31 @@ size_t cvk_mat_put_values(cvk_mat_t *mat, int row, int col,
     return guarded([&]() -> size_t {
         const int chs = m->channels();
         size_t written = 0;
-        // Element-wise along the row starting at (row, col), interleaving
-        // channels exactly like Java Mat.put(row, col, double[]); stops at
-        // the row end or once count values are consumed.
-        for (int c = col; c < m->cols && written < count; ++c) {
+        // Row-major element-wise write starting at (row, col), interleaving
+        // channels exactly like Java Mat.put(row, col, double[]); wraps to
+        // the next row when the current one ends, stopping at the matrix end
+        // or once count values are consumed.
+        int r = row;
+        int c = col;
+        while (written < count) {
+            if (c >= m->cols) {
+                c = 0;
+                ++r;
+            }
+            if (r >= m->rows) break;
             for (int ch = 0; ch < chs && written < count; ++ch, ++written) {
                 switch (m->depth()) {
-                    case CV_8U: write_at<uchar>(*m, row, c, ch, values[written]); break;
-                    case CV_8S: write_at<schar>(*m, row, c, ch, values[written]); break;
-                    case CV_16U: write_at<ushort>(*m, row, c, ch, values[written]); break;
-                    case CV_16S: write_at<short>(*m, row, c, ch, values[written]); break;
-                    case CV_32S: write_at<int>(*m, row, c, ch, values[written]); break;
-                    case CV_32F: write_at<float>(*m, row, c, ch, values[written]); break;
-                    case CV_64F: write_at<double>(*m, row, c, ch, values[written]); break;
+                    case CV_8U: write_at<uchar>(*m, r, c, ch, values[written]); break;
+                    case CV_8S: write_at<schar>(*m, r, c, ch, values[written]); break;
+                    case CV_16U: write_at<ushort>(*m, r, c, ch, values[written]); break;
+                    case CV_16S: write_at<short>(*m, r, c, ch, values[written]); break;
+                    case CV_32S: write_at<int>(*m, r, c, ch, values[written]); break;
+                    case CV_32F: write_at<float>(*m, r, c, ch, values[written]); break;
+                    case CV_64F: write_at<double>(*m, r, c, ch, values[written]); break;
                     default: throw cv::Exception(cv::Error::StsUnsupportedFormat, "unsupported matrix depth", __func__, __FILE__, __LINE__);
                 }
             }
+            ++c;
         }
         return written;
     });
@@ -2368,21 +2377,29 @@ size_t cvk_mat_get_values(const cvk_mat_t *mat, int row, int col,
     return guarded([&]() -> size_t {
         const int chs = m->channels();
         size_t read = 0;
-        // Mirror of put_values: element-wise along the row starting at
-        // (row, col), stopping at the row end.
-        for (int c = col; c < m->cols && read < count; ++c) {
+        // Row-major element-wise read starting at (row, col), interleaving
+        // channels; wraps to the next row when the current one ends.
+        int r = row;
+        int c = col;
+        while (read < count) {
+            if (c >= m->cols) {
+                c = 0;
+                ++r;
+            }
+            if (r >= m->rows) break;
             for (int ch = 0; ch < chs && read < count; ++ch, ++read) {
                 switch (m->depth()) {
-                    case CV_8U: out[read] = read_at<uchar>(*m, row, c, ch); break;
-                    case CV_8S: out[read] = read_at<schar>(*m, row, c, ch); break;
-                    case CV_16U: out[read] = read_at<ushort>(*m, row, c, ch); break;
-                    case CV_16S: out[read] = read_at<short>(*m, row, c, ch); break;
-                    case CV_32S: out[read] = read_at<int>(*m, row, c, ch); break;
-                    case CV_32F: out[read] = read_at<float>(*m, row, c, ch); break;
-                    case CV_64F: out[read] = read_at<double>(*m, row, c, ch); break;
+                    case CV_8U: out[read] = read_at<uchar>(*m, r, c, ch); break;
+                    case CV_8S: out[read] = read_at<schar>(*m, r, c, ch); break;
+                    case CV_16U: out[read] = read_at<ushort>(*m, r, c, ch); break;
+                    case CV_16S: out[read] = read_at<short>(*m, r, c, ch); break;
+                    case CV_32S: out[read] = read_at<int>(*m, r, c, ch); break;
+                    case CV_32F: out[read] = read_at<float>(*m, r, c, ch); break;
+                    case CV_64F: out[read] = read_at<double>(*m, r, c, ch); break;
                     default: throw cv::Exception(cv::Error::StsUnsupportedFormat, "unsupported matrix depth", __func__, __FILE__, __LINE__);
                 }
             }
+            ++c;
         }
         return read;
     });
@@ -2587,7 +2604,7 @@ void cvk_grab_cut(const cvk_mat_t *img, cvk_mat_t *mask,
  * highgui (desktop backends: Win32UI / Cocoa; headless Linux and Android
  * get no-op stubs that report on stderr so callers can detect it)
  * ========================================================================= */
-#if defined(__ANDROID__)
+#if defined(CVK_NO_HIGHGUI)
 #define CVK_HIGHGUI_UNAVAILABLE 1
 #endif
 

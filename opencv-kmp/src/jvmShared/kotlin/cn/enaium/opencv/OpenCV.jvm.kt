@@ -31,7 +31,7 @@ package cn.enaium.opencv
 private fun lastNativeError(): String? = Jni.lastError()
 
 /** Wraps a raw handle; throws with the native error text when it is 0. */
-private fun jvmMat(ptr: Long, operation: String): Mat =
+internal fun jvmMat(ptr: Long, operation: String): Mat =
     if (ptr != 0L) JvmMat(ptr) else throw OpenCVException(operation, lastNativeError())
 
 /** Unpacks a fixed-order two-handle jlongArray output into a Mat pair. */

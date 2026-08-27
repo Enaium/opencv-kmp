@@ -1,0 +1,40 @@
+diff --git a/opencv/3rdparty/mlas/CMakeLists.txt b/opencv/3rdparty/mlas/CMakeLists.txt
+index 368b168..798c049 100644
+--- a/opencv/3rdparty/mlas/CMakeLists.txt
++++ b/opencv/3rdparty/mlas/CMakeLists.txt
+@@ -22,7 +22,7 @@ set(MLAS_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/inc)
+ # Hardware-agnostic core: SGEMM dispatch + softmax/exp kernels + flash-attention.
+ set(mlas_common_srcs
+   ${MLAS_SRC_DIR}/platform.cpp
+-  ${CMAKE_SOURCE_DIR}/modules/dnn/src/layers/cpu_kernels/mlas_threading.cpp
++  ${OpenCV_SOURCE_DIR}/modules/dnn/src/layers/cpu_kernels/mlas_threading.cpp
+   ${MLAS_SRC_DIR}/sgemm.cpp
+   ${MLAS_SRC_DIR}/compute.cpp
+   ${MLAS_SRC_DIR}/flashattn.cpp
+@@ -39,7 +39,16 @@ set(MLAS_LOONGARCH64 FALSE CACHE INTERNAL "" FORCE)
+ set(MLAS_S390X       FALSE CACHE INTERNAL "" FORCE)
+ set(MLAS_WASM        FALSE CACHE INTERNAL "" FORCE)
+ 
+-if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
++# On Apple the CMake host probe reports the build machine's architecture even
++# for native cross-arch builds (e.g. x86_64 target on an arm64 Mac), so use
++# the explicit CMAKE_OSX_ARCHITECTURES when present.
++if(APPLE AND DEFINED CMAKE_OSX_ARCHITECTURES)
++  if(CMAKE_OSX_ARCHITECTURES MATCHES "arm64|aarch64")
++    set(MLAS_ARM64 TRUE CACHE INTERNAL "" FORCE)
++  elseif(CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
++    set(MLAS_X86_64 TRUE CACHE INTERNAL "" FORCE)
++  endif()
++elseif (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+   set(MLAS_WASM TRUE CACHE INTERNAL "" FORCE)
+ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm64.*")
+   set(MLAS_ARM64 TRUE CACHE INTERNAL "" FORCE)
+@@ -238,7 +247,7 @@ add_library(opencv_dnn_mlas OBJECT ${mlas_common_srcs} ${mlas_platform_srcs})
+ set_target_properties(opencv_dnn_mlas PROPERTIES POSITION_INDEPENDENT_CODE ON)
+ target_include_directories(opencv_dnn_mlas PUBLIC  ${MLAS_INC_DIR})
+ target_include_directories(opencv_dnn_mlas PRIVATE ${MLAS_SRC_DIR})
+-target_include_directories(opencv_dnn_mlas PRIVATE ${CMAKE_SOURCE_DIR}/modules/core/include)
++target_include_directories(opencv_dnn_mlas PRIVATE ${OpenCV_SOURCE_DIR}/modules/core/include)
+ 
+ target_compile_definitions(opencv_dnn_mlas PRIVATE
+   BUILD_MLAS_NO_ONNXRUNTIME=1

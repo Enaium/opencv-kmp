@@ -1,0 +1,11 @@
+--- a/opencv/modules/imgcodecs/CMakeLists.txt
++++ b/opencv/modules/imgcodecs/CMakeLists.txt
+@@ -145,6 +145,6 @@
+   list(APPEND imgcodecs_srcs ${CMAKE_CURRENT_LIST_DIR}/src/ios_conversions.mm)
+   list(APPEND IMGCODECS_LIBRARIES "-framework UIKit")
+ endif()
+-if(APPLE AND (NOT IOS) AND (NOT XROS))
++if(APPLE AND (NOT IOS) AND (NOT XROS) AND (NOT TVOS) AND (NOT WATCHOS))
+   list(APPEND imgcodecs_srcs ${CMAKE_CURRENT_LIST_DIR}/src/macosx_conversions.mm)
+   list(APPEND IMGCODECS_LIBRARIES "-framework AppKit")
+ endif()

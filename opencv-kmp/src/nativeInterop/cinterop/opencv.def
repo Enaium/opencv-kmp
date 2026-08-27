@@ -1,6 +1,6 @@
 package = cvk
 headers = opencv_kmp.h
-headerFilter = opencv_kmp.h
+headerFilter = opencv_kmp.h opencv_kmp_coretypes.h opencv_kmp_core.h opencv_kmp_imgproc.h opencv_kmp_imgproc2.h opencv_kmp_imgcodecs.h opencv_kmp_features.h opencv_kmp_features2.h opencv_kmp_geometry.h opencv_kmp_calib.h opencv_kmp_photo.h opencv_kmp_video.h opencv_kmp_video2.h opencv_kmp_videoio.h opencv_kmp_objdetect.h opencv_kmp_objdetect2.h opencv_kmp_stereo.h opencv_kmp_ptcloud.h opencv_kmp_dnn.h opencv_kmp_dnn2.h
 
 # Every OpenCV/3rdparty static archive is embedded into the klib via
 # separate -libraryPath/-staticLibrary options from build.gradle.kts.

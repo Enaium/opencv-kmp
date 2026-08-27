@@ -70,6 +70,7 @@ object MatType {
     val CV_32SC3 = cvMakeType(CV_32S, 3)
 
     val CV_32FC1 = cvMakeType(CV_32F, 1)
+    val CV_32FC2 = cvMakeType(CV_32F, 2)
     val CV_32FC3 = cvMakeType(CV_32F, 3)
     val CV_32FC4 = cvMakeType(CV_32F, 4)
 

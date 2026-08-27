@@ -1,6 +1,4 @@
-# opencv-kmp
-
-Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.x, `core` / `imgproc` / `imgcodecs`).
+Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.x, Android SDK API surface: `core` / `imgproc` / `imgcodecs` / `video` / `videoio` / `objdetect` / `dnn` / `photo` / `calib` / `features2d` / `stereo` / `ptcloud`).
 
 - **Kotlin/Native** — OpenCV is compiled statically per target and embedded into the published klib through cinterop; consumers link it without any extra setup.
 - **JVM (desktop + Android)** — a self-contained JNI shared library (`libopencv_jni`) is built from the OpenCV submodule and shipped as a classpath resource per OS/arch; `NativeLoader` extracts and loads the matching one at runtime.
@@ -12,6 +10,9 @@ Both platforms call the same thin C ABI (`native/`, `cvk_` prefix) that wraps th
 | Target | Native lib | JVM lib |
 | --- | --- | --- |
 | macOS arm64 / x64 | klib-embedded static | `darwin-aarch64` / `darwin-x86_64` |
+| iOS (sim) arm64 / x64, device arm64 | klib-embedded static | — |
+| tvOS (sim) arm64, device arm64 | klib-embedded static | — |
+| watchOS (sim) arm64, device arm64 | klib-embedded static | — |
 | Linux x64 / arm64 | klib-embedded static | `linux-x86_64` / `linux-aarch64` |
 | Windows x64 | klib-embedded static (mingw) | `windows-x86_64` |
 | Android (native) arm32 / arm64 / x86 / x86_64 | klib-embedded static | — |
@@ -58,9 +59,6 @@ The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps g
 - Scalar arithmetic: `Scalar + - * / Scalar`, `* / + - Double`, `unaryMinus`, infix `dist`.
 - Extensions in common code: `toGray()`, `toFloat32()`, `normalize01()`, `mirror()`, `rotate90/180/270()`, `pixels: ByteArray`, `shape`, `fill { }`.
 - Factories: `mat()`, `zeros()`, `ones()`, `eye()`, `imread()`, `imwrite()`, `imencode()`, `imdecode()`.
-- Operators on `Mat`: `+ - * /`, indexed `get`/`set`, `times(scale)`, infix `bitwiseAnd/Or/Xor`, infix `diff`.
-- Extensions in common code: `toGray()`, `toFloat32()`, `normalize01()`, `mirror()`, `rotate90/180/270()`, `pixels: ByteArray`, `shape`, `fill { }`.
-- Factories: `mat()`, `zeros()`, `ones()`, `eye()`, `imread()`, `imwrite()`, `imencode()`, `imdecode()`.
 
 ## Building from source
 
@@ -82,7 +80,15 @@ macOS klibs and the darwin JNI artifacts are built on macOS hosts; the windows-x
 ./gradlew :opencv-kmp:publishToMavenLocal :jni-jvm-linux-x86_64:publishToMavenLocal
 ```
 
-Each Kotlin/Native target drives its own CMake configuration (`configureNative_<target>` / `buildNative_<target>`) that compiles OpenCV statically (`BUILD_LIST=core,imgproc,imgcodecs`, bundled zlib/libpng/libjpeg-turbo, no network downloads) plus the cvk shim, merges all archives into one `libopencv_kmp.a`, and embeds it into the klib.
+Apple mobile targets (iOS/tvOS/watchOS, simulator + device) compile but are not runnable from the CLI; the simulator suites run under `iosSimulatorArm64Test` / `tvosSimulatorArm64Test` / `watchosSimulatorArm64Test` (they need a booted simulator). The linuxArm64 target cannot be exercised from an x64 host (no qemu cross-run); on an arm64 host use the Docker image:
+
+```bash
+docker/test-linux-arm64.sh   # builds docker/ image, runs :opencv-kmp:jvmTest + :opencv-kmp:linuxArm64Test inside
+```
+
+Each Kotlin/Native target drives its own CMake configuration (`configureNative_<target>` / `buildNative_<target>`) that compiles OpenCV statically (`BUILD_LIST=core,imgproc,imgcodecs,video,videoio,objdetect,dnn,photo,calib` plus `cvv`, `ptcloud`-related modules, bundled zlib/libpng/libjpeg-turbo, no network downloads) plus the cvk shim, merges all archives into one `libopencv_kmp.a`, and embeds it into the klib.
+
+> **OpenCV submodule patches.** The vendored OpenCV tree ships with two patches applied automatically by `native/CMakeLists.txt` on every configure (idempotent, `git apply --reverse --check` first): `native/cmake/mlas-subproject.patch` (3rdparty/mlas resolve paths under `add_subdirectory` and Apple architecture detection from `CMAKE_OSX_ARCHITECTURES`) and `native/cmake/imgcodecs-appletv.patch` (exclude macOS-only imgcodecs sources on tvOS/watchOS). Keep the submodule checkout pristine; the build applies what it needs.
 
 ## CI
 

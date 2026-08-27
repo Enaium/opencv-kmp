@@ -815,6 +815,33 @@ void cvk_destroy_window(const char *winname);
 /** cv::destroyAllWindows. */
 void cvk_destroy_all_windows(void);
 
+/* =========================================================================
+ * Per-module declarations (opencv_kmp_<module>.h)
+ *
+ * Newly added API surface lives in its own module header, included here
+ * after the shared types. The cinterop def and the JNI bridge compile the
+ * whole set through this umbrella header.
+ * ========================================================================= */
+#include "opencv_kmp_coretypes.h"
+#include "opencv_kmp_core.h"
+#include "opencv_kmp_imgproc.h"
+#include "opencv_kmp_imgproc2.h"
+#include "opencv_kmp_video2.h"
+#include "opencv_kmp_objdetect2.h"
+#include "opencv_kmp_dnn2.h"
+#include "opencv_kmp_imgcodecs.h"
+#include "opencv_kmp_features.h"
+#include "opencv_kmp_features2.h"
+#include "opencv_kmp_geometry.h"
+#include "opencv_kmp_calib.h"
+#include "opencv_kmp_photo.h"
+#include "opencv_kmp_video.h"
+#include "opencv_kmp_videoio.h"
+#include "opencv_kmp_objdetect.h"
+#include "opencv_kmp_stereo.h"
+#include "opencv_kmp_ptcloud.h"
+#include "opencv_kmp_dnn.h"
+
 #ifdef __cplusplus
 }
 #endif
