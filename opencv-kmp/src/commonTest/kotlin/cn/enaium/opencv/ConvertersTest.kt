@@ -111,8 +111,9 @@ class ConvertersTest {
         mat(2, 1, cvMakeType(CV_64F, 1)).use { wrong ->
             assertFailsWith<IllegalArgumentException> { matToVectorPoint(wrong) }
         }
-        // A freshly created CV_32SC2 Mat decodes to zero points.
-        mat(2, 1, cvMakeType(CV_32S, 2)).use { zeroed ->
+        // An explicitly zeroed CV_32SC2 Mat decodes to zero points (a bare
+        // mat() allocation is uninitialized storage, so zero it first).
+        mat(2, 1, cvMakeType(CV_32S, 2), Scalar.all(0.0)).use { zeroed ->
             assertEquals(listOf(Point(0, 0), Point(0, 0)), matToVectorPoint(zeroed))
         }
     }
