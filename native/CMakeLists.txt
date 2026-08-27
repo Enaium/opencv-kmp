@@ -59,12 +59,10 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # OpenCV's FindZLIB picks the system library and the 3rdparty zlib archive
 # the merge step copies (libzlib.a) is never produced. The bundled copy is
 # what the static archives link, and it keeps every host deterministic.
+# png/jpeg stay at their defaults: OpenCV prefers the bundled 3rdparty
+# builds there whenever BUILD_PNG/BUILD_JPEG are ON, so no forcing needed.
 set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
 set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
-set(WITH_PNG OFF CACHE BOOL "" FORCE)
-set(BUILD_PNG ON CACHE BOOL "" FORCE)
-set(WITH_JPEG OFF CACHE BOOL "" FORCE)
-set(BUILD_JPEG ON CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers), features (corner
 # detectors) and calib are OpenCV 5's new homes for classic imgproc APIs the
 # binding exposes. ptcloud requires highgui, so every target compiles it: a
