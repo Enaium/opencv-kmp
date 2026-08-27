@@ -328,7 +328,7 @@ class CoreTest {
     @Test
     fun copyToWithMaskKeepsOnlyMaskedPixels() {
         fill64(2, 2, listOf(1.0, 2.0, 3.0, 4.0)).use { src ->
-            mat(2, 2, MatType.CV_8UC1).use { mask ->
+            mat(2, 2, MatType.CV_8UC1, Scalar.all(0.0)).use { mask ->
                 mask[0, 0] = 255.0
                 mask[1, 1] = 255.0
                 src.copyTo(mask).use { dst ->
@@ -410,7 +410,7 @@ class CoreTest {
     // masked statistics
     // =========================================================================
 
-    private fun halfMask(): Mat = mat(2, 2, MatType.CV_8UC1).also {
+    private fun halfMask(): Mat = mat(2, 2, MatType.CV_8UC1, Scalar.all(0.0)).also {
         it[0, 0] = 255.0
         it[0, 1] = 255.0
     }
