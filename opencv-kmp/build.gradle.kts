@@ -389,14 +389,26 @@ kotlin {
 }
 
 // The cvk_ shim and the JNI bridge are not designed for concurrent calls
-// from one process. JUnit Platform's parallel execution interleaves test
-// classes in a single worker and produces nondeterministic native-memory
-// corruption (the suite's CalibTest observed garbage distortion
-// coefficients whenever several classes ran at once). Keep it sequential.
-tasks.named("jvmTest", Test::class) {
-    maxParallelForks = 1
-    systemProperty("junit.jupiter.execution.parallel.enabled", "false")
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "same_thread")
+// from one process. Parallel test execution (JUnit Platform class
+// interleaving in one worker, or multiple workers) produces
+// nondeterministic native-memory corruption: the suite's CalibTest showed
+// garbage distortion coefficients whenever classes ran at once, and the
+// same bytes corrupted an unrelated mask mean. Configure the KMP test
+// tasks through their typed executionTask API (tasks.named("jvmTest",
+// Test::class) silently matches nothing - KotlinJvmTest extends
+// AbstractTestTask, not Test).
+kotlin {
+    jvm {
+        testRuns.all {
+            executionTask.configure {
+                maxParallelForks = 1
+                forkEvery = 500
+                systemProperty("junit.jupiter.execution.parallel.enabled", "false")
+                systemProperty("junit.jupiter.execution.parallel.mode.default", "same_thread")
+                systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
+            }
+        }
+    }
 }
 
 
