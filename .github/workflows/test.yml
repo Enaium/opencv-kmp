@@ -182,7 +182,11 @@ jobs:
         run: ./gradlew --no-daemon :opencv-kmp:jvmTest
 
       - name: Run native tests (linuxX64)
-        run: ./gradlew --no-daemon :opencv-kmp:linuxX64Test
+        # TEMP bisect: single-test focus for the imreadmulti crash, then the
+        # full suite. REMOVE the focused invocation after diagnosis.
+        run: >
+          ./gradlew --no-daemon :opencv-kmp:linuxX64Test
+          --tests "cn.enaium.opencv.ImgcodecsTest.imreadmultiMissingFileReturnsNull"
 
       - name: Run example (linuxX64)
         run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
