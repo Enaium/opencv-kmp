@@ -55,14 +55,23 @@ file(MAKE_DIRECTORY "${CVK_OUTPUT_DIR}")
 # libraries (JNI) and PIE executables (Kotlin/Native).
 # ---------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-# Always use the bundled zlib: recent NDK sysroots ship libz.so, so
-# OpenCV's FindZLIB picks the system library and the 3rdparty zlib archive
-# the merge step copies (libzlib.a) is never produced. The bundled copy is
-# what the static archives link, and it keeps every host deterministic.
-# png/jpeg stay at their defaults: OpenCV prefers the bundled 3rdparty
-# builds there whenever BUILD_PNG/BUILD_JPEG are ON, so no forcing needed.
+# Always use the bundled codecs. zlib: recent NDK sysroots ship libz.so
+# and CI runners ship libjpeg/libpng dev packages, so OpenCV's finders
+# pick the system libraries and the 3rdparty archives the merge step
+# copies (libzlib.a / liblibjpeg-turbo.a / libpng.a) are never produced.
+# The bundled archives are what the static libs link, and forcing them
+# keeps every host deterministic. (png/jpeg must stay enabled - WITH_*
+# OFF disables the codec entirely - so instead the system results are
+# masked and BUILD_* stays ON for the 3rdparty build.)
 set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
 set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
+# Mask the system results before OpenCV's find modules run.
+set(JPEG_FOUND FALSE CACHE BOOL "" FORCE)
+set(JPEG_LIBRARY "JPEG_LIBRARY-NOTFOUND" CACHE FILEPATH "" FORCE)
+set(JPEG_INCLUDE_DIR "JPEG_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "" FORCE)
+set(PNG_FOUND FALSE CACHE BOOL "" FORCE)
+set(PNG_LIBRARY "PNG_LIBRARY-NOTFOUND" CACHE FILEPATH "" FORCE)
+set(PNG_PNG_INCLUDE_DIR "PNG_PNG_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "" FORCE)
 # geometry (contours, affine/perspective helpers), features (corner
 # detectors) and calib are OpenCV 5's new homes for classic imgproc APIs the
 # binding exposes. ptcloud requires highgui, so every target compiles it: a
