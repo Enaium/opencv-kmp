@@ -157,22 +157,27 @@ jobs:
           ./gradlew --no-daemon --stacktrace
           :jni-jvm-windows-x86_64:buildJniLibrarywindows-x86_64
 
-      - name: Decode signing key
+      - name: Decode signing key + provision signing properties
+        # gradlew.bat mangles -Psigning.* args containing '=' on Windows
+        # (they surface as tasks like '.keyId=***'), so the signing
+        # properties are written to the Gradle user-home gradle.properties
+        # instead of the command line, and the publish step passes none.
         shell: pwsh
         run: |
           $bytes = [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
           $dir = [System.IO.Path]::GetTempPath()
           $path = Join-Path $dir "signing-key.gpg"
           [IO.File]::WriteAllBytes($path, $bytes)
-          echo "RUNNER_TEMP=$dir" | Out-File -Append -FilePath $env:GITHUB_ENV
-          echo "SIGNING_KEY_PATH=$path" | Out-File -Append -FilePath $env:GITHUB_ENV
+          $gradleHome = Join-Path $env:USERPROFILE ".gradle"
+          New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
+          $props = Join-Path $gradleHome "gradle.properties"
+          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Encoding ascii
+          "signing.secretKeyRingFile=$path" | Add-Content -FilePath $props -Encoding ascii
+          "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -FilePath $props -Encoding ascii
 
       - name: Publish Windows + JNI to Maven Local
         run: >
           ./gradlew --no-daemon --stacktrace
-          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
-          -Psigning.secretKeyRingFile="${{ runner.temp }}/signing-key.gpg"
-          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
           :opencv-kmp:publishJvmPublicationToMavenLocal
           :opencv-kmp:publishMingwX64PublicationToMavenLocal
           :jni-jvm-windows-x86_64:publishToMavenLocal
