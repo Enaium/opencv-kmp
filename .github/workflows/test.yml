@@ -30,6 +30,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Detailed native build output: gradle -i for task graphs, CMake -v via
+  # CMAKE_VERBOSE_MAKEFILE (CVK_VERBOSE) for every compile/link command.
+  GRADLE_OPTS: "-Dorg.gradle.logging.level=info"
+  CVK_VERBOSE: "1"
+
 jobs:
   test-macos:
     name: Test macOS ARM64

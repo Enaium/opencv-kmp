@@ -55,6 +55,13 @@ file(MAKE_DIRECTORY "${CVK_OUTPUT_DIR}")
 # libraries (JNI) and PIE executables (Kotlin/Native).
 # ---------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+
+# CVK_VERBOSE=1 in the environment prints every compile/link command
+# (CMAKE_VERBOSE_MAKEFILE); CI sets it to make native failures
+# reproducible from logs, local builds stay quiet by default.
+if(DEFINED ENV{CVK_VERBOSE})
+    set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "" FORCE)
+endif()
 # Always use the bundled codecs. zlib: recent NDK sysroots ship libz.so
 # and CI runners ship libjpeg/libpng dev packages, so OpenCV's finders
 # pick the system libraries and the 3rdparty archives the merge step
@@ -349,19 +356,22 @@ foreach(_t kleidicv kleidicv_hal kleidicv_thread tegra_hal)
     endif()
 endforeach()
 
-# Bundled codecs zlib/libpng/libjpeg-turbo; building opencv_core guarantees
-# the whole 3rdparty set exists.
+# Bundled codecs zlib/libpng/libjpeg-turbo; the 3rdparty targets must
+# finish before the copies run (parallel make can otherwise race the
+# archive creation), so each copy depends on its own target.
 foreach(_n libjpeg-turbo libpng zlib)
+    if(NOT TARGET ${_n})
+        continue()
+    endif()
     set(_out "${CVK_OUTPUT_DIR}/lib${_n}.a")
     add_custom_command(OUTPUT "${_out}"
             COMMAND test -f "${CMAKE_BINARY_DIR}/opencv-build/3rdparty/lib${_abi_sub}/lib${_n}.a"
             COMMAND "${CMAKE_COMMAND}" -E copy
                     "${CMAKE_BINARY_DIR}/opencv-build/3rdparty/lib${_abi_sub}/lib${_n}.a" "${_out}"
-            DEPENDS opencv_core
+            DEPENDS opencv_core ${_n}
             VERBATIM)
     list(APPEND CVK_COPIED_LIBS "${_out}")
 endforeach()
-
 # dnn's bundled protobuf (separate 3rdparty archive referenced by
 # opencv_dnn; absent when dnn is not in the build).
 if(TARGET libprotobuf)
