@@ -172,8 +172,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
           $props = Join-Path $gradleHome "gradle.properties"
           "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Encoding ascii
-          "signing.secretKeyRingFile=$path" | Add-Content -FilePath $props -Encoding ascii
-          "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -FilePath $props -Encoding ascii
+          "signing.secretKeyRingFile=$path" | Add-Content -Path $props -Encoding ascii
+          "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -Path $props -Encoding ascii
 
       - name: Publish Windows + JNI to Maven Local
         run: >
