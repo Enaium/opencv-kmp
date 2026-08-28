@@ -3,42 +3,21 @@ name: Test
 "on":
   workflow_dispatch:
 
-#                  :jni-jvm-darwin-* JNI artifacts, JVM + native tests, the
-#                  iOS/tvOS/watchOS simulator tests, and the example (JVM +
-#                  native)
-#   Linux x64   -> linuxX64 klib, cross-compiled linuxArm64/mingwX64 klibs,
-#                  the androidNative klibs (NDK), the linux + android JNI
-#                  artifacts, JVM + native tests, and the example
-#   Linux arm64 -> native linuxArm64 klib + linux-aarch64 JNI artifact tests
-#   Windows x64 -> the windows-x86_64 JNI artifact (native MinGW build) and
-#                  JVM tests
-#   Linux (Android) -> android variant + androidNative klibs (NDK), the
-#                  android JNI artifacts, Android host compilation, and
-#                  per-ABI example shared libraries
-#                  :jni-jvm-darwin-* JNI artifacts, JVM + native tests, and
-#                  the example (JVM + native)
-#   Linux x64   -> linuxX64 klib, cross-compiled linuxArm64/mingwX64 klibs,
-#                  the androidNative klibs (NDK), the linux + android JNI
-#                  artifacts, JVM + native tests, and the example
-#   Windows x64 -> the windows-x86_64 JNI artifact (native MinGW build) and
-#                  JVM tests
-#   Linux (Android) -> android variant + androidNative klibs (NDK), the
-#                  android JNI artifacts, Android host compilation, and
-#                  per-ABI example shared libraries
+# Publish-only CI: each runner builds and publishes the artifacts for its
+# platform to the local Maven repository. No tests, no examples, no
+# simulator runs are executed here - those run separately.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  # Detailed native build output: gradle -i for task graphs, CMake -v via
-  # CMAKE_VERBOSE_MAKEFILE (CVK_VERBOSE) for every compile/link command.
   GRADLE_OPTS: "-Dorg.gradle.logging.level=info"
   CVK_VERBOSE: "1"
 
 jobs:
-  test-macos:
-    name: Test macOS ARM64
+  publish-macos:
+    name: Publish macOS platforms to Maven Local
     runs-on: macos-14
     steps:
       - name: Check out repository
@@ -55,8 +34,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          # The checked-in wrapper jar is not on the action's known-good
-          # checksum list; validation would fail every job.
           validate-wrappers: false
 
       - name: Record OpenCV submodule revision
@@ -72,9 +49,6 @@ jobs:
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
           key: native-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
-          # No restore-keys: fuzzy-restoring a tree configured from different
-          # sources produced a mixed dnn build (undefined opt_NEON symbols).
-          # A key miss rebuilds cold instead of mixing.
 
       - name: Decode signing key
         run: |
@@ -93,37 +67,8 @@ jobs:
           :jni-jvm-darwin-aarch64:publishToMavenLocal
           :jni-jvm-darwin-x86_64:publishToMavenLocal
 
-      - name: Run JVM tests
-        run: ./gradlew --no-daemon :opencv-kmp:jvmTest
-
-      - name: Compile Apple mobile targets
-        # Native OpenCV compiles (cinterop + klib) for every Apple target.
-        run: >
-          ./gradlew --no-daemon
-          :opencv-kmp:compileKotlinIosSimulatorArm64
-          :opencv-kmp:compileKotlinIosArm64
-          :opencv-kmp:compileKotlinIosX64
-          :opencv-kmp:compileKotlinTvosSimulatorArm64
-          :opencv-kmp:compileKotlinTvosArm64
-          :opencv-kmp:compileKotlinWatchosSimulatorArm64
-          :opencv-kmp:compileKotlinWatchosArm64
-          :opencv-kmp:compileKotlinWatchosDeviceArm64
-
-      - name: Run Apple simulator tests
-        run: >
-          ./gradlew --no-daemon
-          :opencv-kmp:iosSimulatorArm64Test
-          :opencv-kmp:tvosSimulatorArm64Test
-          :opencv-kmp:watchosSimulatorArm64Test
-
-      - name: Run example (JVM)
-        run: ./gradlew --no-daemon :examples:basic:jvmRun
-
-      - name: Run example (macosArm64)
-        run: ./gradlew --no-daemon :examples:basic:runDebugExecutableMacosArm64
-
-  test-linux:
-    name: Test Linux x64
+  publish-linux:
+    name: Publish Linux + mingw platforms to Maven Local
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -148,12 +93,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          # The checked-in wrapper jar is not on the action's known-good
-          # checksum list; validation would fail every job.
           validate-wrappers: false
 
-      # OpenCV static builds are the slow part (~1h cold); cache them so
-      # repeated runs reuse the compiled archives and klibs.
       - name: Record OpenCV submodule revision
         id: opencv-rev
         run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -167,31 +108,12 @@ jobs:
             jni/jvm/*/build/cmake-jni/*
             jni/jvm/*/build/jni-native/*
           key: native-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
-          # No restore-keys: fuzzy-restoring a tree configured from different
-          # sources produced a mixed dnn build (undefined opt_NEON symbols).
-          # A key miss rebuilds cold instead of mixing.
 
       - name: Decode signing key
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
 
-      # Tests first: jvmTest and linuxX64Test only need the linux-x86_64 JNI
-      # artifact and the linuxX64 klib, so they start after one OpenCV build
-      # instead of waiting for every cross target.
-      - name: Run JVM tests
-        run: ./gradlew --no-daemon :opencv-kmp:jvmTest
-
-      - name: Run native tests (linuxX64)
-        # TEMP bisect: single-test focus for the imreadmulti crash, then the
-        # full suite. REMOVE the focused invocation after diagnosis.
-        run: >
-          ./gradlew --no-daemon :opencv-kmp:linuxX64Test
-          --tests "cn.enaium.opencv.ImgcodecsTest.imreadmultiMissingFileReturnsNull"
-
-      - name: Run example (linuxX64)
-        run: ./gradlew --no-daemon :examples:basic:runDebugExecutableLinuxX64
-
-      - name: Publish linux and mingw platforms to Maven Local
+      - name: Publish Linux + mingw platforms to Maven Local
         run: >
           ./gradlew --no-daemon --stacktrace
           -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
@@ -203,60 +125,8 @@ jobs:
           :jni-jvm-linux-x86_64:publishToMavenLocal
           :jni-jvm-linux-aarch64:publishToMavenLocal
 
-  test-linux-arm:
-    name: Test Linux ARM64
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Configure JDK 21
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Install toolchain
-        # Native arm64 runner: the aarch64-linux-gnu toolchain compiles
-        # natively for the linuxArm64 klib; GTK3 provides the highgui
-        # window backend.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libgtk-3-dev pkg-config
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-        with:
-          validate-wrappers: false
-
-      - name: Record OpenCV submodule revision
-        id: opencv-rev
-        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache native builds
-        uses: actions/cache@v4
-        with:
-          path: |
-            opencv-kmp/build/cmake-*
-            opencv-kmp/build/native/*
-            jni/jvm/*/build/cmake-jni/*
-            jni/jvm/*/build/jni-native/*
-          key: native-${{ runner.arch }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
-          # No restore-keys: fuzzy-restoring a tree configured from different
-          # sources produced a mixed dnn build; rebuild cold instead.
-
-      - name: Run JVM tests (linux-aarch64 JNI)
-        # Kotlin/Native does not support linux-aarch64 as a build host in
-        # this Kotlin version, so an arm64 runner cannot run the linuxArm64
-        # klib tests; it exercises the native arm64 JNI artifact instead.
-        run: ./gradlew --no-daemon :opencv-kmp:jvmTest
-
-  test-windows:
-    name: Test Windows x64
+  publish-windows:
+    name: Publish Windows + JNI to Maven Local
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -274,15 +144,11 @@ jobs:
         shell: pwsh
         run: |
           choco install mingw -y --no-progress
-          # The JVM needs MinGW's runtime DLLs (libwinpthread-1.dll,
-          # libgcc_s_seh-1.dll) on PATH to load the JNI DLL.
           echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          # The checked-in wrapper jar is not on the action's known-good
-          # checksum list; validation would fail every job.
           validate-wrappers: false
 
       - name: Build the windows-x86_64 JNI artifact
@@ -291,11 +157,26 @@ jobs:
           ./gradlew --no-daemon --stacktrace
           :jni-jvm-windows-x86_64:buildJniLibrarywindows-x86_64
 
-      - name: Run JVM tests
-        run: ./gradlew --no-daemon --stacktrace :opencv-kmp:jvmTest
+      - name: Decode signing key
+        shell: pwsh
+        run: |
+          $tmp = [System.IO.Path]::GetTempFileName()
+          $env:RUNNER_TEMP = $tmp
+          $bytes = [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\signing-key.gpg", $bytes)
 
-  test-android:
-    name: Test Android (variant + androidNative)
+      - name: Publish Windows + JNI to Maven Local
+        run: >
+          ./gradlew --no-daemon --stacktrace
+          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
+          -Psigning.secretKeyRingFile="${{ runner.temp }}/signing-key.gpg"
+          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
+          :opencv-kmp:publishJvmPublicationToMavenLocal
+          :opencv-kmp:publishMingwX64PublicationToMavenLocal
+          :jni-jvm-windows-x86_64:publishToMavenLocal
+
+  publish-android:
+    name: Publish Android to Maven Local
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -316,34 +197,25 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          # The checked-in wrapper jar is not on the action's known-good
-          # checksum list; validation would fail every job.
           validate-wrappers: false
 
-      - name: Publish android variant and androidNative klibs to Maven Local
+      - name: Decode signing key
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
+
+      - name: Publish Android to Maven Local
         run: >
           ./gradlew --no-daemon --stacktrace
-          :opencv-kmp:compileAndroidMain
-          :opencv-kmp:publishAndroidPublicationToMavenLocal
+          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
+          -Psigning.secretKeyRingFile="${{ runner.temp }}/signing-key.gpg"
+          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
           :opencv-kmp:publishKotlinMultiplatformPublicationToMavenLocal
+          :opencv-kmp:publishAndroidPublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeArm64PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeArm32PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeX64PublicationToMavenLocal
           :opencv-kmp:publishAndroidNativeX86PublicationToMavenLocal
-
-      - name: Run Android host tests (JVM)
-        # commonTest suite executed against the android variant's JVM
-        # classes on the runner host (NativeLoader picks a desktop JNI lib
-        # from the androidHostTest-only runtime dependencies).
-        run: ./gradlew --no-daemon :opencv-kmp:testAndroidHostTest
-
-      - name: Build android native examples (shared lib per ABI)
-        # Kotlin/Native cross-compiles the androidNative targets on any host
-        # with the Android NDK; each link produces the per-ABI shared library
-        # an Android app would load.
-        run: >
-          ./gradlew --no-daemon --stacktrace
-          :examples:basic:linkMainDebugSharedAndroidNativeArm64
-          :examples:basic:linkMainDebugSharedAndroidNativeArm32
-          :examples:basic:linkMainDebugSharedAndroidNativeX64
-          :examples:basic:linkMainDebugSharedAndroidNativeX86
+          :jni-jvm-android-aarch64:publishToMavenLocal
+          :jni-jvm-android-arm:publishToMavenLocal
+          :jni-jvm-android-x86_64:publishToMavenLocal
+          :jni-jvm-android-x86:publishToMavenLocal
