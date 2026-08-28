@@ -64,6 +64,14 @@ jobs:
           :opencv-kmp:publishJvmPublicationToMavenLocal
           :opencv-kmp:publishMacosArm64PublicationToMavenLocal
           :opencv-kmp:publishMacosX64PublicationToMavenLocal
+          :opencv-kmp:publishIosArm64PublicationToMavenLocal
+          :opencv-kmp:publishIosSimulatorArm64PublicationToMavenLocal
+          :opencv-kmp:publishIosX64PublicationToMavenLocal
+          :opencv-kmp:publishTvosArm64PublicationToMavenLocal
+          :opencv-kmp:publishTvosSimulatorArm64PublicationToMavenLocal
+          :opencv-kmp:publishWatchosArm64PublicationToMavenLocal
+          :opencv-kmp:publishWatchosSimulatorArm64PublicationToMavenLocal
+          :opencv-kmp:publishWatchosDeviceArm64PublicationToMavenLocal
           :jni-jvm-darwin-aarch64:publishToMavenLocal
           :jni-jvm-darwin-x86_64:publishToMavenLocal
 

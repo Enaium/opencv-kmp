@@ -54,6 +54,20 @@ jobs:
           # checksum list; validation would fail every job.
           validate-wrappers: false
 
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-*
+            opencv-kmp/build/native/*
+            jni/jvm/*/build/cmake-jni/*
+            jni/jvm/*/build/jni-native/*
+          key: publish-${{ github.job }}-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
+
       - name: Decode signing key
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | tr -d ' \n' | base64 -d > "$RUNNER_TEMP/signing-key.gpg"
@@ -61,8 +75,11 @@ jobs:
       # Per-target publications are used instead of
       # publishAllPublicationsToMavenCentralRepository so that the linux /
       # android klibs (built with their embedded static libraries elsewhere)
-      # are not published from here as bindings-only klibs.
-      - name: Publish metadata, jvm, macOS klibs and the darwin JNI artifacts
+      # are not published from here as bindings-only klibs. The Apple
+      # mobile klibs (ios/tvos/watchos) are compiled on this runner and
+      # included so the kotlinMultiplatform metadata can resolve them; they
+      # are link-only artifacts (no tests/simulator runs here).
+      - name: Publish metadata, jvm, Apple klibs and darwin JNI artifacts
         run: >
           ./gradlew --no-daemon --stacktrace
           -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
@@ -72,6 +89,14 @@ jobs:
           :opencv-kmp:publishJvmPublicationToMavenCentralRepository
           :opencv-kmp:publishMacosArm64PublicationToMavenCentralRepository
           :opencv-kmp:publishMacosX64PublicationToMavenCentralRepository
+          :opencv-kmp:publishIosArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishIosSimulatorArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishIosX64PublicationToMavenCentralRepository
+          :opencv-kmp:publishTvosArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishTvosSimulatorArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishWatchosArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishWatchosSimulatorArm64PublicationToMavenCentralRepository
+          :opencv-kmp:publishWatchosDeviceArm64PublicationToMavenCentralRepository
           :jni-jvm-darwin-aarch64:publishMavenPublicationToMavenCentralRepository
           :jni-jvm-darwin-x86_64:publishMavenPublicationToMavenCentralRepository
           --continue
@@ -79,7 +104,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
-  publish-linux-android:
+  publish-linux:
     name: Publish Linux (klibs + JNI artifacts)
     runs-on: ubuntu-latest
     steps:
@@ -102,16 +127,26 @@ jobs:
             gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 \
             libgtk-3-dev pkg-config
 
-      - name: Install Android NDK
-        run: |
-          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "ndk;27.0.12077973" >/dev/null
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           # The checked-in wrapper jar is not on the action's known-good
           # checksum list; validation would fail every job.
           validate-wrappers: false
+
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-*
+            opencv-kmp/build/native/*
+            jni/jvm/*/build/cmake-jni/*
+            jni/jvm/*/build/jni-native/*
+          key: publish-${{ github.job }}-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
 
       - name: Decode signing key
         run: |
@@ -163,21 +198,27 @@ jobs:
           # checksum list; validation would fail every job.
           validate-wrappers: false
 
-      - name: Decode signing key
+      - name: Decode signing key + provision signing properties
+        # gradlew.bat mangles -Psigning.* args containing '=' on Windows
+        # (they surface as tasks like '.keyId=***'), so the signing
+        # properties are written to the Gradle user-home gradle.properties
+        # instead of the command line, and the publish step passes none.
         shell: pwsh
         run: |
-          [IO.File]::WriteAllBytes(
-            "$env:RUNNER_TEMP\signing-key.gpg",
-            [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
-          )
+          $dir = [System.IO.Path]::GetTempPath()
+          $path = Join-Path $dir "signing-key.gpg"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}"))
+          $gradleHome = Join-Path $env:USERPROFILE ".gradle"
+          New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
+          $props = Join-Path $gradleHome "gradle.properties"
+          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Encoding ascii
+          "signing.secretKeyRingFile=$path" | Add-Content -Path $props -Encoding ascii
+          "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -Path $props -Encoding ascii
 
       - name: Publish the windows-x86_64 JNI artifact
         shell: cmd
         run: >
           ./gradlew --no-daemon --stacktrace
-          -Psigning.keyId="${{ secrets.SIGNING_KEY_ID }}"
-          -Psigning.secretKeyRingFile="${{ runner.temp }}\signing-key.gpg"
-          -Psigning.password="${{ secrets.SIGNING_PASSWORD }}"
           :jni-jvm-windows-x86_64:publishMavenPublicationToMavenCentralRepository
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
@@ -207,6 +248,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           validate-wrappers: false
+
+      - name: Record OpenCV submodule revision
+        id: opencv-rev
+        run: echo "sha=$(git -C opencv rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            opencv-kmp/build/cmake-*
+            opencv-kmp/build/native/*
+            jni/jvm/*/build/cmake-jni/*
+            jni/jvm/*/build/jni-native/*
+          key: publish-${{ github.job }}-${{ runner.os }}-${{ steps.opencv-rev.outputs.sha }}-${{ hashFiles('native/**', 'jni/**', 'buildSrc/src/**', 'opencv-kmp/build.gradle.kts', 'opencv-kmp/src/nativeInterop/**') }}
 
       - name: Decode signing key
         run: |
