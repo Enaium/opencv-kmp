@@ -74,6 +74,11 @@ set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
 set(BUILD_JPEG ON CACHE BOOL "" FORCE)
 set(BUILD_PNG ON CACHE BOOL "" FORCE)
 set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
+# The Orbbec obsensor backend calls pthread_cond_clockwait (glibc >= 2.30),
+# which the Kotlin/Native linux_x64 sysroot's bundled glibc lacks - linking
+# the klib test binary fails. Camera capture is out of scope for the
+# bindings, so drop the backend.
+set(WITH_OBSENSOR OFF CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers), features (corner
 # detectors) and calib are OpenCV 5's new homes for classic imgproc APIs the
 # binding exposes. ptcloud requires highgui, so every target compiles it: a
