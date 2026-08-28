@@ -160,10 +160,12 @@ jobs:
       - name: Decode signing key
         shell: pwsh
         run: |
-          $tmp = [System.IO.Path]::GetTempFileName()
-          $env:RUNNER_TEMP = $tmp
           $bytes = [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\signing-key.gpg", $bytes)
+          $dir = [System.IO.Path]::GetTempPath()
+          $path = Join-Path $dir "signing-key.gpg"
+          [IO.File]::WriteAllBytes($path, $bytes)
+          echo "RUNNER_TEMP=$dir" | Out-File -Append -FilePath $env:GITHUB_ENV
+          echo "SIGNING_KEY_PATH=$path" | Out-File -Append -FilePath $env:GITHUB_ENV
 
       - name: Publish Windows + JNI to Maven Local
         run: >
