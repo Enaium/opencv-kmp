@@ -62,23 +62,18 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 if(DEFINED ENV{CVK_VERBOSE})
     set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "" FORCE)
 endif()
-# Always use the bundled codecs. zlib: recent NDK sysroots ship libz.so
-# and CI runners ship libjpeg/libpng dev packages, so OpenCV's finders
-# pick the system libraries and the 3rdparty archives the merge step
-# copies (libzlib.a / liblibjpeg-turbo.a / libpng.a) are never produced.
-# The bundled archives are what the static libs link, and forcing them
-# keeps every host deterministic. (png/jpeg must stay enabled - WITH_*
-# OFF disables the codec entirely - so instead the system results are
-# masked and BUILD_* stays ON for the 3rdparty build.)
-set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
+# Always use the bundled codecs. OpenCV's BUILD_ZLIB/BUILD_JPEG/BUILD_PNG
+# default to OFF on Linux (system packages preferred there), so CI runners
+# and hosts with libjpeg/libpng dev packages get the system libraries and
+# the 3rdparty archives the merge step copies (libzlib.a /
+# liblibjpeg-turbo.a / libpng.a) are never produced. Forcing BUILD_* ON
+# makes the bundle the only choice on every host (with WITH_* left ON, the
+# codecs stay enabled); WITH_ZLIB additionally stays OFF because zlib's
+# system pick is found via the NDK sysroot as well.
 set(BUILD_ZLIB ON CACHE BOOL "" FORCE)
-# Mask the system results before OpenCV's find modules run.
-set(JPEG_FOUND FALSE CACHE BOOL "" FORCE)
-set(JPEG_LIBRARY "JPEG_LIBRARY-NOTFOUND" CACHE FILEPATH "" FORCE)
-set(JPEG_INCLUDE_DIR "JPEG_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "" FORCE)
-set(PNG_FOUND FALSE CACHE BOOL "" FORCE)
-set(PNG_LIBRARY "PNG_LIBRARY-NOTFOUND" CACHE FILEPATH "" FORCE)
-set(PNG_PNG_INCLUDE_DIR "PNG_PNG_INCLUDE_DIR-NOTFOUND" CACHE FILEPATH "" FORCE)
+set(BUILD_JPEG ON CACHE BOOL "" FORCE)
+set(BUILD_PNG ON CACHE BOOL "" FORCE)
+set(WITH_ZLIB OFF CACHE BOOL "" FORCE)
 # geometry (contours, affine/perspective helpers), features (corner
 # detectors) and calib are OpenCV 5's new homes for classic imgproc APIs the
 # binding exposes. ptcloud requires highgui, so every target compiles it: a
