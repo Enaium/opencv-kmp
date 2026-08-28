@@ -29,6 +29,7 @@ import cn.enaium.opencv.ThresholdTypes
 import cn.enaium.opencv.cvTypeName
 import cn.enaium.opencv.imdecode
 import cn.enaium.opencv.imencode
+import cn.enaium.opencv.imshow
 import cn.enaium.opencv.imwrite
 import cn.enaium.opencv.mat
 import cn.enaium.opencv.opencvLastError

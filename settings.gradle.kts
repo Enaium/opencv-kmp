@@ -22,6 +22,7 @@ rootProject.name = "opencv-kmp"
 
 include(":opencv-kmp")
 include(":examples:basic")
+include(":examples:tutorials")
 
 // Per-OS/arch JNI artifacts that bundle the prebuilt libopencv_jni shared
 // library as a classpath resource. NativeLoader extracts the matching one at

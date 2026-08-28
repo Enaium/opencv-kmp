@@ -480,13 +480,17 @@ internal fun writeMatHandleAddress(bytes: ByteArray, offset: Int, address: Long)
     bytes[offset + 7] = ((hi ushr 24) and 0xFF).toByte()
 }
 
-/** Reads a 64-bit Mat address packed by [writeMatHandleAddress]. */
+/**
+ * Reads a 64-bit Mat address from the SDK `vector_Mat` wire layout used by
+ * the native shim (`mats_to_wire`): each CV_32SC2 row stores the address
+ * high word first, low word second - [hi32][lo32].
+ */
 internal fun readMatHandleAddress(bytes: ByteArray, offset: Int): Long {
-    val lo = (bytes[offset].toInt() and 0xFF) or
+    val hi = (bytes[offset].toInt() and 0xFF) or
         ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
         ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
         ((bytes[offset + 3].toInt() and 0xFF) shl 24)
-    val hi = (bytes[offset + 4].toInt() and 0xFF) or
+    val lo = (bytes[offset + 4].toInt() and 0xFF) or
         ((bytes[offset + 5].toInt() and 0xFF) shl 8) or
         ((bytes[offset + 6].toInt() and 0xFF) shl 16) or
         ((bytes[offset + 7].toInt() and 0xFF) shl 24)

@@ -1652,8 +1652,6 @@ Java_cn_enaium_opencv_Jni_grabCut(JNIEnv *, jobject, jlong img, jlong mask,
     cvk_grab_cut(as_mat(img), as_mat(mask), rx, ry, rw, rh,
                  as_mat(bgd_model), as_mat(fgd_model), iters, mode);
 }
-} /* extern "C" */
-
 
 // ------------------------------------------------ highgui (desktop only)
 
@@ -1697,3 +1695,5 @@ JNIEXPORT void JNICALL
 Java_cn_enaium_opencv_Jni_destroyAllWindows(JNIEnv *, jobject) {
     cvk_destroy_all_windows();
 }
+
+} /* extern "C" */

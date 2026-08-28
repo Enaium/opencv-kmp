@@ -80,11 +80,7 @@ macOS klibs and the darwin JNI artifacts are built on macOS hosts; the windows-x
 ./gradlew :opencv-kmp:publishToMavenLocal :jni-jvm-linux-x86_64:publishToMavenLocal
 ```
 
-Apple mobile targets (iOS/tvOS/watchOS, simulator + device) compile but are not runnable from the CLI; the simulator suites run under `iosSimulatorArm64Test` / `tvosSimulatorArm64Test` / `watchosSimulatorArm64Test` (they need a booted simulator). The linuxArm64 klib is cross-compiled from x64 hosts, but Kotlin/Native has no linux-aarch64 host distribution in this Kotlin version, so there is no host that can run the linuxArm64 tests; the arm64 Linux JNI artifact is exercised instead via the Docker image on an arm64 host:
-
-```bash
-docker/test-linux-arm64.sh   # builds docker/ image, runs :opencv-kmp:jvmTest against the native arm64 JNI inside
-```
+Apple mobile targets (iOS/tvOS/watchOS, simulator + device) compile but are not runnable from the CLI; the simulator suites run under `iosSimulatorArm64Test` / `tvosSimulatorArm64Test` / `watchosSimulatorArm64Test` (they need a booted simulator). The linuxArm64 klib is cross-compiled from x64 hosts, but Kotlin/Native has no linux-aarch64 host distribution in this Kotlin version, so there is no host that can run the linuxArm64 tests; the arm64 Linux JNI artifact is covered by the CI publish job instead.
 
 Each Kotlin/Native target drives its own CMake configuration (`configureNative_<target>` / `buildNative_<target>`) that compiles OpenCV statically (`BUILD_LIST=core,imgproc,imgcodecs,video,videoio,objdetect,dnn,photo,calib` plus `cvv`, `ptcloud`-related modules, bundled zlib/libpng/libjpeg-turbo, no network downloads) plus the cvk shim, merges all archives into one `libopencv_kmp.a`, and embeds it into the klib.
 
