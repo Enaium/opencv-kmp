@@ -201,17 +201,16 @@ jobs:
       - name: Decode signing key + provision signing properties
         # gradlew.bat mangles -Psigning.* args containing '=' on Windows
         # (they surface as tasks like '.keyId=***'), so the signing
-        # properties are written to the Gradle user-home gradle.properties
-        # instead of the command line, and the publish step passes none.
+        # properties are appended to the checkout's gradle.properties (loaded
+        # from the project dir, unlike the Gradle user home file) and the
+        # publish step passes none.
         shell: pwsh
         run: |
           $dir = [System.IO.Path]::GetTempPath()
           $path = Join-Path $dir "signing-key.gpg"
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}"))
-          $gradleHome = Join-Path $env:USERPROFILE ".gradle"
-          New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
-          $props = Join-Path $gradleHome "gradle.properties"
-          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Encoding ascii
+          $props = Join-Path $env:GITHUB_WORKSPACE "gradle.properties"
+          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Append -Encoding ascii
           "signing.secretKeyRingFile=$path" | Add-Content -Path $props -Encoding ascii
           "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -Path $props -Encoding ascii
 
