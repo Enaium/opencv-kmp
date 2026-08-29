@@ -25,11 +25,12 @@ mavenPublishing {
         version = rootProject.version.toString(),
     )
     publishToMavenCentral(automaticRelease = true)
-    // Signing requires the -Psigning.* properties (provided by CI); plain
-    // publishToMavenLocal runs stay signature-free for local iteration.
-    if (project.hasProperty("signing.keyId")) {
-        signAllPublications()
-    }
+    // Always register the signing tasks: conditional registration silently
+    // skipped them when signing.* was provided via gradle.properties on some
+    // runners, failing Central validation on missing .asc files. The signing
+    // plugin no-ops when no keyring is configured, so local
+    // publishToMavenLocal stays fine.
+    signAllPublications()
 
     pom {
         name.set("opencv-kmp-jni-jvm-android-armeabi-v7a")
