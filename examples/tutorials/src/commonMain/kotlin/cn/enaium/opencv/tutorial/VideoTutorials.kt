@@ -97,7 +97,7 @@ private fun farnebackDemo(): String = buildString {
                     for (c in 0 until out.cols) {
                         val vx = out.at(r, c, 0).toFloat()
                         val vy = out.at(r, c, 1).toFloat()
-                        val mag = Math.sqrt((vx * vx + vy * vy).toDouble())
+                        val mag = kotlin.math.sqrt(vx * vx + vy * vy)
                         if (mag > 0.5) largeMag++
                         if (vx > 0.5) right++
                     }

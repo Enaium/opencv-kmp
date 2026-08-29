@@ -137,8 +137,14 @@ private fun Mat.describeMatrix(): String {
         if (r > 0) sb.append("; ")
         for (c in 0 until cols) {
             if (c > 0) sb.append(", ")
-            sb.append(String.format("%.2f", at(r, c)))
+            sb.append(fmt2(at(r, c)))
         }
     }
     return sb.append("]").toString()
+}
+
+/** Two-decimal formatting without java.util (K/N compatible). */
+private fun fmt2(v: Double): String {
+    val scaled = if (v >= 0) (v * 100 + 0.5).toLong() else (v * 100 - 0.5).toLong()
+    return "${scaled / 100}.${(if (scaled < 0) -scaled else scaled) % 100}"
 }

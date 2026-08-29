@@ -21,8 +21,8 @@
  */
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
-package cn.enaium.opencv.tutorial
-
+// K/N executables require a root-package main() entry point.
+import cn.enaium.opencv.tutorial.runTutorials
 import kotlinx.cinterop.toKString
 import platform.posix.getenv
 
