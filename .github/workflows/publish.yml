@@ -2,6 +2,12 @@ name: Publish
 
 "on":
   workflow_dispatch:
+    inputs:
+      platform:
+        description: "Comma-separated platforms to publish: all, macos, linux, windows, android"
+        required: false
+        type: string
+        default: "all"
 
 # Publishes every artifact from the runner that can build it. Maven Central
 # coordinates are immutable, so each publication is produced by exactly one
@@ -33,6 +39,7 @@ name: Publish
 
 jobs:
   publish-macos:
+    if: contains(github.event.inputs.platform || 'all', 'macos') || (github.event.inputs.platform || 'all') == 'all'
     name: Publish macOS (metadata + jvm + Apple klibs)
     runs-on: macos-14
     steps:
@@ -105,6 +112,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
   publish-linux:
+    if: contains(github.event.inputs.platform || 'all', 'linux') || (github.event.inputs.platform || 'all') == 'all'
     name: Publish Linux (klibs + JNI artifacts)
     runs-on: ubuntu-latest
     steps:
@@ -169,6 +177,7 @@ jobs:
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
 
   publish-windows:
+    if: contains(github.event.inputs.platform || 'all', 'windows') || (github.event.inputs.platform || 'all') == 'all'
     name: Publish Windows (windows-x86_64 JNI artifact)
     runs-on: windows-latest
     steps:
@@ -225,6 +234,7 @@ jobs:
 
 
   publish-android:
+    if: contains(github.event.inputs.platform || 'all', 'android') || (github.event.inputs.platform || 'all') == 'all'
     name: Publish Android (variant + androidNative klibs + JNI)
     runs-on: ubuntu-latest
     steps:
