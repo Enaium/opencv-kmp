@@ -170,12 +170,15 @@ kotlin {
     androidNativeX86()
 
     // ==================== cinterop for all native targets ====================
-    // highgui window backends live in system libraries: GTK3 on Linux, the
-    // Cocoa/AppKit frameworks on macOS, and AVFoundation on macOS (videoio).
-    // The embedded archives reference them, so every desktop binary must
-    // link them explicitly. Apple mobile targets embed the OpenCV static
-    // libraries whose platform code touches Foundation/CoreFoundation and
-    // the media frameworks videoio binds.
+    // Consumers link the platform frameworks automatically: the system
+    // library arguments live in opencv.def under the linkerOpts.<Family>
+    // keys (see src/nativeInterop/cinterop/opencv.def), which Kotlin/Native
+    // records in the cinterop klib manifest and forwards into every
+    // consumer's link command - library users only need the import.
+    //
+    // The binaries.configureEach linkerOpts below are a fallback for this
+    // module's own test/link targets so they work even when the cinterop
+    // klib output is not consulted (e.g. IDE-less test runs).
     targets.withType<KotlinNativeTarget>().configureEach {
         when (name) {
             "linuxX64", "linuxArm64" -> binaries.configureEach {

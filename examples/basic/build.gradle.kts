@@ -44,18 +44,7 @@ kotlin {
     watchosSimulatorArm64 { binaries.executable() }
     watchosDeviceArm64 { binaries.executable() }
 
-    macosArm64 {
-        binaries.executable {
-            // highgui's Cocoa backend and videoio's AVFoundation backend
-            // live in system frameworks the embedded OpenCV archives
-            // reference.
-            linkerOpts(
-                "-framework", "Cocoa", "-framework", "AppKit",
-                "-framework", "AVFoundation", "-framework", "CoreMedia",
-                "-framework", "CoreVideo", "-framework", "QuartzCore",
-            )
-        }
-    }
+    macosArm64 { binaries.executable() }
 
     linuxX64 { binaries.executable() }
 

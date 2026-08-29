@@ -10,3 +10,13 @@ headerFilter = opencv_kmp.h opencv_kmp_coretypes.h opencv_kmp_core.h opencv_kmp_
 linkerOpts.linux = -lm -ldl -lpthread
 linkerOpts.mingw = -lole32
 linkerOpts.android = -lm -ldl
+
+# System frameworks the embedded highgui/videoio backends reference. The
+# platform key matches KonanTarget.Family (OSX, IOS, TVOS, WATCHOS, LINUX,
+# MINGW, ANDROID); Kotlin/Native forwards the matching key's arguments from
+# the cinterop klib manifest into every consumer's link command, so
+# library users only import - no extra linker configuration needed.
+linkerOpts.osx = -framework Cocoa -framework AppKit -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework QuartzCore
+linkerOpts.ios = -framework Foundation -framework CoreFoundation -framework UIKit -framework ImageIO -framework CoreGraphics -framework QuartzCore
+linkerOpts.tvos = -framework Foundation -framework CoreFoundation -framework UIKit -framework ImageIO -framework CoreGraphics -framework QuartzCore
+linkerOpts.watchos = -framework Foundation -framework CoreFoundation -framework ImageIO -framework CoreGraphics -framework QuartzCore
