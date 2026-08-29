@@ -89,10 +89,13 @@ private fun avgDelta(a: Mat, b: Mat): Double =
     a.absDiff(b).use { it.mean.v0 }
 
 /** Black canvas with a bright rectangle plus a vertical line of pixels. */
-internal fun syntheticScene(): Mat {
-    val canvas = cn.enaium.opencv.zeros(48, 64, cn.enaium.opencv.MatType.CV_8UC1)
-    canvas.rectangle(Point(12, 12), Point(52, 36), Scalar.all(255.0), cn.enaium.opencv.FILLED)
-    for (y in 0 until canvas.rows step 7) canvas.line(Point(2, y), Point(2, y), Scalar.all(255.0), 1)
+internal fun syntheticScene(rows: Int = 48, cols: Int = 64): Mat {
+    val canvas = cn.enaium.opencv.zeros(rows, cols, cn.enaium.opencv.MatType.CV_8UC1)
+    val w = cols / 8
+    val h = rows / 8
+    canvas.rectangle(Point(w, h), Point(cols - w, rows - h), Scalar.all(255.0), cn.enaium.opencv.FILLED)
+    val step = (rows / 7 + 1).coerceAtLeast(1)
+    for (y in 0 until rows step step) canvas.line(Point(2, y), Point(2, y), Scalar.all(255.0), 1)
     return canvas
 }
 

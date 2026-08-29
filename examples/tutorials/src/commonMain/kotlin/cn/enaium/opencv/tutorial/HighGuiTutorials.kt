@@ -28,19 +28,23 @@ import cn.enaium.opencv.waitKey
 
 /**
  * Port of the HighGUI window tutorials (AddingImagesTrackbar.cpp /
- * BasicLinearTransformsTrackbar.cpp): create a window, show a synthetic
- * image, pump a single waitKey so the image is painted, then tear the
- * window down again. Headless builtin (Linux CI) reports to stderr instead
- * of opening a window; macOS/Windows open real windows briefly.
+ * BasicLinearTransformsTrackbar.cpp): create a window, show an image, pump
+ * waitKey so the window is painted, then tear it down. macOS/Windows open
+ * real windows; the builtin headless backend (Linux CI) reports to stderr.
  */
 fun runHighGuiTutorials(): String = buildString {
     appendLine("-- imshow / namedWindow / waitKey --")
-    syntheticScene().use { img ->
+    // Demo-size image (480x640) so the window is clearly visible; the raw
+    // scene is small (48x64), which would open a tiny window.
+    syntheticScene(rows = 480, cols = 640).use { img ->
         namedWindow("tutorial")
         imshow("tutorial", img)
-        val key = waitKey(1)
+        // Hold for a few seconds so the user can see the window before it
+        // closes; -1 means no key was pressed.
+        val key = waitKey(3000)
         destroyAllWindows()
         line("waitKey returned", "$key")
         line("window shown", "true")
+        line("image size", "${img.rows}x${img.cols}")
     }
 }
