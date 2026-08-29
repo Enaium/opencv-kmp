@@ -216,7 +216,7 @@ jobs:
         shell: pwsh
         run: |
           $dir = [System.IO.Path]::GetTempPath()
-          $path = Join-Path $dir "signing-key.gpg"
+          $path = (Join-Path $dir "signing-key.gpg").Replace("\", "/")
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}"))
           $props = Join-Path $env:GITHUB_WORKSPACE "gradle.properties"
           "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Append -Encoding ascii
