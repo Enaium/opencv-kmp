@@ -116,7 +116,9 @@ object ColorConversionCodes {
     const val BGR2GRAY: Int = 6
     const val RGB2GRAY: Int = 7
     const val GRAY2BGR: Int = 8
-    const val GRAY2RGB: Int = 9
+    const val GRAY2RGB: Int = 8
+    const val GRAY2BGRA: Int = 9
+    const val GRAY2RGBA: Int = 9
     const val BGRA2GRAY: Int = 10
     const val RGBA2GRAY: Int = 11
     const val BGR2XYZ: Int = 32
