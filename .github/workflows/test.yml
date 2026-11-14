@@ -168,18 +168,17 @@ jobs:
       - name: Decode signing key + provision signing properties
         # gradlew.bat mangles -Psigning.* args containing '=' on Windows
         # (they surface as tasks like '.keyId=***'), so the signing
-        # properties are written to the Gradle user-home gradle.properties
-        # instead of the command line, and the publish step passes none.
+        # properties are appended to the checkout's gradle.properties (loaded
+        # from the project dir, unlike the Gradle user home file) and the
+        # publish step passes none. setup-gradle relocates GRADLE_USER_HOME to
+        # D:\a\.gradle, so the user-home file would never be read.
         shell: pwsh
         run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}")
           $dir = [System.IO.Path]::GetTempPath()
-          $path = Join-Path $dir "signing-key.gpg"
-          [IO.File]::WriteAllBytes($path, $bytes)
-          $gradleHome = Join-Path $env:USERPROFILE ".gradle"
-          New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
-          $props = Join-Path $gradleHome "gradle.properties"
-          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Encoding ascii
+          $path = (Join-Path $dir "signing-key.gpg").Replace("\", "/")
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String("${{ secrets.SIGNING_KEY }}"))
+          $props = Join-Path $env:GITHUB_WORKSPACE "gradle.properties"
+          "signing.keyId=${{ secrets.SIGNING_KEY_ID }}" | Out-File -FilePath $props -Append -Encoding ascii
           "signing.secretKeyRingFile=$path" | Add-Content -Path $props -Encoding ascii
           "signing.password=${{ secrets.SIGNING_PASSWORD }}" | Add-Content -Path $props -Encoding ascii
 
@@ -234,3 +233,16 @@ jobs:
           :jni-jvm-android-armeabi-v7a:publishToMavenLocal
           :jni-jvm-android-x86_64:publishToMavenLocal
           :jni-jvm-android-x86:publishToMavenLocal
+
+      # The per-ABI AARs carry libopencv_jni.so under jni/<abi>/. Assembling the
+      # sample app is the end-to-end check that AGP packages it into the APK's
+      # lib/<abi>/, where NativeLoader loads it via System.loadLibrary (issue #1).
+      - name: Verify the Android AAR ships loadable natives
+        run: |
+          ./gradlew --no-daemon :examples:android:assembleRelease
+          apk=$(ls examples/android/build/outputs/apk/release/*.apk | head -1)
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            unzip -l "$apk" | grep -q "lib/$abi/libopencv_jni.so" \
+              || { echo "::error::APK is missing lib/$abi/libopencv_jni.so"; exit 1; }
+          done
+          echo "APK ships libopencv_jni.so for every ABI"
