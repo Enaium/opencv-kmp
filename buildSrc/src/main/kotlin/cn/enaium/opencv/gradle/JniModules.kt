@@ -22,6 +22,8 @@
 package cn.enaium.opencv.gradle
 
 import org.gradle.api.Project
+import org.gradle.api.file.Directory
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Exec
 import org.gradle.internal.os.OperatingSystem
@@ -33,14 +35,18 @@ import java.io.File
  *
  * Each module calls [configure] with its classifier; this wires up the
  * CMake build of `libopencv_jni` for that OS/arch (host-native where
- * possible, cross-compiled where a toolchain exists), packages the shared
- * library as a classpath resource under
- * `/cn/enaium/opencv/native/<classifier>/`, and publishes it as
+ * possible, cross-compiled where a toolchain exists) and publishes it as
  * `cn.enaium.opencv:opencv-kmp-jni-jvm-<classifier>`.
+ *
+ * Desktop classifiers package the library as a classpath resource under
+ * `/cn/enaium/opencv/native/<classifier>/`, which [NativeLoader] extracts.
+ * Android classifiers are Android library modules whose AAR carries it under
+ * `jni/<abi>/`, so AGP packages it into the app and the platform loader finds
+ * it — resources inside dependency jars are dropped by AGP (issue #1).
  */
 object JniModules {
 
-    fun configure(project: Project, classifier: String) {
+    fun configure(project: Project, classifier: String): Provider<Directory> {
         val host = OperatingSystem.current()
         val hostArch = System.getProperty("os.arch").lowercase()
 
@@ -75,6 +81,15 @@ object JniModules {
 
         val parts = classifier.split('-')
         require(parts.size >= 2) { "invalid classifier '$classifier'" }
+
+        // Android jniLibs use the platform ABI names (arm64-v8a, not v8a), so
+        // the per-ABI output directory is named after the ABI and sits under a
+        // single jni-native root that the AAR module hands to AGP.
+        val androidAbi = if (classifier.startsWith("android-")) when (parts.last()) {
+            "v8a" -> "arm64-v8a"
+            "v7a" -> "armeabi-v7a"
+            else -> parts.last()
+        } else null
 
         val buildability: Pair<Boolean, List<String>> = when {
             classifier == "linux-x86_64" ->
@@ -124,11 +139,7 @@ object JniModules {
                 )
 
             classifier.startsWith("android-") -> {
-                val abi = when (parts.last()) {
-                    "v8a" -> "arm64-v8a"
-                    "v7a" -> "armeabi-v7a"
-                    else -> parts.last()
-                }
+                val abi = androidAbi!!
                 val ndk = ndkPath()
                 // Android artifacts are built by the Linux CI job only; other
                 // hosts may still have an NDK (GitHub runners do) but must not
@@ -158,7 +169,8 @@ object JniModules {
         }
 
         val resourceDir = "cn/enaium/opencv/native/$classifier"
-        val nativeOutputDir = project.layout.buildDirectory.dir("jni-native/$classifier")
+        val jniLibsRoot = project.layout.buildDirectory.dir("jni-native")
+        val nativeOutputDir = jniLibsRoot.map { it.dir(androidAbi ?: classifier) }
         val cmakeBuildDir = project.layout.buildDirectory.dir("cmake-jni/$classifier")
 
         val configureJniLibrary = project.tasks.register(
@@ -238,13 +250,25 @@ object JniModules {
             outputs.file(nativeOutputDir.map { it.file(libFile) })
         }
 
-        project.tasks.named("processResources", Copy::class.java) {
-            dependsOn(buildJniLibrary)
-            from(buildJniLibrary.map { it.outputs.files }) {
-                include(libFile)
-                into(resourceDir)
+        if (classifier.startsWith("android-")) {
+            // The AAR carries jni/<abi>/<lib> so AGP packages it into the APK's
+            // lib/<abi>/, where System.loadLibrary resolves it. A dependency
+            // jar's resources are dropped by AGP, which is why the resource
+            // route never worked on Android.
+            project.tasks.matching { it.name.endsWith("JniLibFolders") }.configureEach {
+                dependsOn(buildJniLibrary)
+            }
+        } else {
+            project.tasks.named("processResources", Copy::class.java) {
+                dependsOn(buildJniLibrary)
+                from(buildJniLibrary.map { it.outputs.files }) {
+                    include(libFile)
+                    into(resourceDir)
+                }
             }
         }
+        // Android modules point AGP's jniLibs at the root holding <abi>/<lib>.
+        return if (androidAbi != null) jniLibsRoot else nativeOutputDir
     }
 
     /** Resolves cmake to an absolute path so Exec tasks survive daemon PATH drift. */

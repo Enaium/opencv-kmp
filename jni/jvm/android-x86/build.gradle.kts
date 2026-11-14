@@ -1,22 +1,33 @@
 /*
- * Per-OS/arch JNI artifact: android-x86.
- * Ships libopencv_jni as a classpath resource at
- * /cn/enaium/opencv/native/android-x86/, which NativeLoader
- * (in :opencv-kmp's jvmMain) extracts and System.load()s at runtime.
+ * Per-ABI JNI artifact: android-x86.
+ * Publishes an Android library whose AAR carries
+ * jni/x86/libopencv_jni.so, which AGP packages into the app's lib/x86/
+ * and NativeLoader loads through System.loadLibrary.
  */
 import cn.enaium.opencv.gradle.JniModules
 
 plugins {
-    `java-library`
+    id("com.android.library")
     id("com.vanniktech.maven.publish")
 }
 
-java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+val jniLibs = JniModules.configure(project, "android-x86")
+
+android {
+    namespace = "cn.enaium.opencv.jni.android_x86"
+    compileSdk = 36
+    defaultConfig {
+        minSdk = 26
+    }
 }
 
-JniModules.configure(project, "android-x86")
+// AGP 9's sourceSets DSL rejects generated jniLibs directories; the variant API
+// is the supported route for a build-time produced <abi>/<lib>.
+androidComponents {
+    onVariants { variant ->
+        variant.sources.jniLibs?.addStaticSourceDirectory(jniLibs.get().asFile.absolutePath)
+    }
+}
 
 mavenPublishing {
     coordinates(

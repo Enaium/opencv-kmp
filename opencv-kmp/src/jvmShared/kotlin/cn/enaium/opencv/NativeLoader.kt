@@ -22,23 +22,60 @@
 package cn.enaium.opencv
 
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.security.MessageDigest
+import java.io.InputStream
 
 /**
- * Resolves and loads the JNI shared library bundled in the matching
- * `opencv-kmp-jni-jvm-{os}-{arch}` artifact's resources.
+ * Resolves and loads the JNI shared library for the running platform.
  *
- * Falls back to `System.loadLibrary("opencv_jni")` if no bundled binary
- * matches the host (a developer workflow places the lib on
- * `java.library.path`).
+ * Android: the per-ABI artifact is an AAR whose `jni/<abi>/libopencv_jni.so`
+ * entry is packaged into the APK's `lib/<abi>/`, so the platform loader
+ * (`System.loadLibrary`) finds it. The bundled resource is only consulted if
+ * that fails (a consumer that strips the AAR native libs).
+ *
+ * Desktop: the matching `opencv-kmp-jni-jvm-{os}-{arch}` artifact carries the
+ * library as a classpath resource which is extracted to a temp file and
+ * `System.load`ed; `System.loadLibrary` is the fallback for a `java.library.path`
+ * developer setup.
+ *
+ * Loading happens once per process: the three JNI holder objects call [load]
+ * from their init blocks and later calls are no-ops.
  */
 internal object NativeLoader {
     private const val LIB_NAME = "opencv_jni"
     private const val RESOURCE_BASE = "/cn/enaium/opencv/native"
 
+    @Volatile
+    private var loaded = false
+
+    @Synchronized
     fun load() {
+        if (loaded) return
+        val android = detectOs() == "android"
+        if (android && loadFromLibraryPath()) {
+            loaded = true
+            return
+        }
+        try {
+            loadFromResource()
+        } catch (e: UnsatisfiedLinkError) {
+            if (!android && loadFromLibraryPath()) {
+                loaded = true
+                return
+            }
+            throw e
+        }
+        loaded = true
+    }
+
+    /** True when the platform loader resolved `libopencv_jni` (APK `lib/<abi>/`, `java.library.path`). */
+    private fun loadFromLibraryPath(): Boolean = try {
+        System.loadLibrary(LIB_NAME)
+        true
+    } catch (_: UnsatisfiedLinkError) {
+        false
+    }
+
+    private fun loadFromResource() {
         val classifier = detectClassifier()
         // Windows DLLs don't use the "lib" prefix (opencv_jni.dll), while
         // Unix shared libraries do (libopencv_jni.so/.dylib).
@@ -49,10 +86,11 @@ internal object NativeLoader {
             ?: throw UnsatisfiedLinkError(
                 "Resource $resourcePath not found. " +
                         "os=${System.getProperty("os.name")}, arch=${System.getProperty("os.arch")}, " +
-                        "classifier=$classifier.",
+                        "classifier=$classifier. " +
+                        "If this artifact is consumed on Android, the native library is packaged " +
+                        "in the APK's lib/<abi>/ instead and must be loadable by the platform loader.",
             )
-        val bytes = stream.use { it.readBytes() }
-        val target = extractToTemp(bytes, libFile)
+        val target = stream.use { extractToTemp(it, libFile) }
         try {
             System.load(target.absolutePath)
         } catch (e: UnsatisfiedLinkError) {
@@ -63,17 +101,18 @@ internal object NativeLoader {
         }
     }
 
-    private fun extractToTemp(bytes: ByteArray, libFile: String): File {
-        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
-        val hex = digest.joinToString("") { "%02x".format(it) }.take(16)
-        val tempDir = File(System.getProperty("java.io.tmpdir"), "opencv-kmp-$hex")
+    /**
+     * Streams the resource into a private temp file instead of buffering it in
+     * a byte array: the unstripped libraries are hundreds of megabytes on
+     * Android, where the resource is a fallback only. The copy is deleted when
+     * the JVM exits.
+     */
+    private fun extractToTemp(stream: InputStream, libFile: String): File {
+        val tempDir = File(System.getProperty("java.io.tmpdir"), "opencv-kmp")
         tempDir.mkdirs()
-        val target = File(tempDir, libFile)
-        if (!target.isFile || target.length().toInt() != bytes.size) {
-            val tmp = File.createTempFile(libFile, ".part", tempDir)
-            tmp.writeBytes(bytes)
-            Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
-        }
+        val target = File.createTempFile(libFile, null, tempDir)
+        target.deleteOnExit()
+        target.outputStream().use { out -> stream.copyTo(out) }
         return target
     }
 

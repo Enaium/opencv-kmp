@@ -1,7 +1,7 @@
 Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.1.0, Android SDK API surface: `core` / `imgproc` / `imgcodecs` / `video` / `videoio` / `objdetect` / `dnn` / `photo` / `calib` / `features2d` / `stereo` / `ptcloud`).
 
 - **Kotlin/Native** — OpenCV is compiled statically per target and embedded into the published klib through cinterop; consumers link it without any extra setup.
-- **JVM (desktop + Android)** — a self-contained JNI shared library (`libopencv_jni`) is built from the OpenCV submodule and shipped as a classpath resource per OS/arch; `NativeLoader` extracts and loads the matching one at runtime.
+- **JVM (desktop + Android)** — a self-contained JNI shared library (`libopencv_jni`) is built from the OpenCV submodule and shipped per OS/arch: on the desktop as a classpath resource that `NativeLoader` extracts, on Android inside the per-ABI AARs under `jni/<abi>/` so AGP packages it into the app's `lib/<abi>/` and `System.loadLibrary` resolves it.
 
 Both platforms call the same thin C ABI (`native/`, `cvk_` prefix) that wraps the C++ API, so behavior is identical everywhere. All native calls are exception-safe: failures surface as `OpenCVException` (with `cv::Exception::what()` text) or nullable returns.
 
@@ -51,7 +51,7 @@ dependencies {
 }
 ```
 
-The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps get the right one automatically.
+The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps get the right one automatically — the per-ABI AARs carry `jni/<abi>/libopencv_jni.so`, so no manual `jniLibs` wiring or `abiFilters` are needed. `examples/android` is a minimal app that exercises this path and CI asserts the assembled APK contains `lib/<abi>/libopencv_jni.so`.
 
 ### API highlights
 
@@ -84,7 +84,7 @@ Apple mobile targets (iOS/tvOS/watchOS, simulator + device) compile but are not 
 
 Each Kotlin/Native target drives its own CMake configuration (`configureNative_<target>` / `buildNative_<target>`) that compiles OpenCV statically (`BUILD_LIST=core,imgproc,imgcodecs,video,videoio,objdetect,dnn,photo,calib` plus `cvv`, `ptcloud`-related modules, bundled zlib/libpng/libjpeg-turbo, no network downloads) plus the cvk shim, merges all archives into one `libopencv_kmp.a`, and embeds it into the klib.
 
-> **OpenCV submodule patches.** The vendored OpenCV tree ships with two patches applied automatically by `native/CMakeLists.txt` on every configure (idempotent, `git apply --reverse --check` first): `native/cmake/mlas-subproject.patch` (3rdparty/mlas resolve paths under `add_subdirectory` and Apple architecture detection from `CMAKE_OSX_ARCHITECTURES`) and `native/cmake/imgcodecs-appletv.patch` (exclude macOS-only imgcodecs sources on tvOS/watchOS). Keep the submodule checkout pristine; the build applies what it needs.
+> **OpenCV submodule patches.** The vendored OpenCV tree ships with two patches applied automatically by `native/CMakeLists.txt` on every configure (idempotent, `git apply --reverse --check` first): `native/cmake/mlas-subproject.patch` (3rdparty/mlas resolves its source paths under `add_subdirectory`) and `native/cmake/imgcodecs-appletv.patch` (exclude macOS-only imgcodecs sources on tvOS/watchOS). Keep the submodule checkout pristine; the build applies what it needs.
 
 ## CI
 
