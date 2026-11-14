@@ -13,7 +13,7 @@ name: Publish
 # coordinates are immutable, so each publication is produced by exactly one
 # runner:
 #
-: macos-15      -> :opencv-kmp metadata + jvm + macosArm64/macosX64 klibs
+#   macos-15      -> :opencv-kmp metadata + jvm + macosArm64/macosX64 klibs
 #                    (with the embedded OpenCV static library) + the
 #                    opencv-kmp-jni-jvm-darwin-{aarch64,x86_64} artifacts
 #   ubuntu-latest -> :opencv-kmp linuxX64 + linuxArm64 + mingwX64 klibs
