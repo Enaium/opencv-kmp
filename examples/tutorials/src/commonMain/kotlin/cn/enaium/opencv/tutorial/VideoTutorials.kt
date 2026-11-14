@@ -39,9 +39,9 @@ import cn.enaium.opencv.zeros
  * Frames are synthesized (a moving disk on a static background) so the demo
  * runs without a camera or a video file.
  */
-fun runVideoTutorials(): String = buildString {
+fun runVideoTutorials(gallery: Gallery? = null): String = buildString {
     appendLine("-- background subtraction --")
-    backgroundSubtractionDemo().also { append(it) }
+    backgroundSubtractionDemo(gallery).also { append(it) }
 
     appendLine("-- dense optical flow --")
     farnebackDemo().also { append(it) }
@@ -60,7 +60,7 @@ private fun syntheticFrames(count: Int, motionX: Int, motionY: Int, step: Int): 
         f
     }
 
-private fun backgroundSubtractionDemo(): String = buildString {
+private fun backgroundSubtractionDemo(gallery: Gallery? = null): String = buildString {
     val frames = syntheticFrames(count = 12, motionX = 16, motionY = 64, step = 5)
     try {
         createBackgroundSubtractorMOG2().use { mog2 ->
@@ -74,8 +74,13 @@ private fun backgroundSubtractionDemo(): String = buildString {
                 line("MOG2 cumulative foreground", "${mogPixels}")
                 line("KNN cumulative foreground", "${knnPixels}")
                 line("MOG2 tracked disk pixels", "${frames.last().let { last ->
-                    mat(96, 96, MatType.CV_8UC1).use { fg -> mog2.apply(last, fg); fg.nonZeroCount }
+                    mat(96, 96, MatType.CV_8UC1).use { fg ->
+                        mog2.apply(last, fg)
+                        gallery?.add("background subtraction: foreground", fg)
+                        fg.nonZeroCount
+                    }
                 }}")
+                gallery?.add("background subtraction: last frame", frames.last())
             }
         }
     } finally {

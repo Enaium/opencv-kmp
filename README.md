@@ -51,7 +51,7 @@ dependencies {
 }
 ```
 
-The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps get the right one automatically — the per-ABI AARs carry `jni/<abi>/libopencv_jni.so`, so no manual `jniLibs` wiring or `abiFilters` are needed. `examples/android` is a minimal app that exercises this path and CI asserts the assembled APK contains `lib/<abi>/libopencv_jni.so`.
+The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps get the right one automatically — the per-ABI AARs carry `jni/<abi>/libopencv_jni.so`, so no manual `jniLibs` wiring or `abiFilters` are needed. `examples/basic/android` and `examples/tutorials/android` are Compose apps that exercise this path, and CI asserts their assembled APKs contain `lib/<abi>/libopencv_jni.so`.
 
 ### API highlights
 
@@ -73,12 +73,16 @@ macOS klibs and the darwin JNI artifacts are built on macOS hosts; the windows-x
 ```bash
 # build + test everything buildable on this host
 ./gradlew :opencv-kmp:jvmTest :opencv-kmp:linuxX64Test   # platform tests
-./gradlew :examples:basic:jvmRun                          # JVM demo
+./gradlew :examples:basic:jvmRun                          # JVM demo (imshow windows)
+./gradlew :examples:tutorials:jvmRun                      # tutorial report + imshow windows
 ./gradlew :examples:basic:runDebugExecutableLinuxX64     # native demo
+./gradlew :examples:basic:android:installDebug           # Compose gallery on a device/emulator
 
 # publish local-platform artifacts to mavenLocal
 ./gradlew :opencv-kmp:publishToMavenLocal :jni-jvm-linux-x86_64:publishToMavenLocal
 ```
+
+The examples stay headless and hand their pictures to a `Gallery`; the desktop entry points show every collected picture in highgui windows (`--hold=<ms>` closes them after that delay instead of waiting for a key press), while `examples/*/android` renders the same gallery on Compose canvases.
 
 Apple mobile targets (iOS/tvOS/watchOS, simulator + device) compile but are not runnable from the CLI; the simulator suites run under `iosSimulatorArm64Test` / `tvosSimulatorArm64Test` / `watchosSimulatorArm64Test` (they need a booted simulator). The linuxArm64 klib is cross-compiled from x64 hosts, but Kotlin/Native has no linux-aarch64 host distribution in this Kotlin version, so there is no host that can run the linuxArm64 tests; the arm64 Linux JNI artifact is covered by the CI publish job instead.
 

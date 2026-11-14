@@ -23,10 +23,18 @@ package cn.enaium.opencv.example
 
 import java.io.File
 
-fun main() {
-    println("== basic ==")
-    println(runBasicDemo())
-    println("== image processing ==")
-    val outDir = File(System.getProperty("java.io.tmpdir"), "opencv-kmp-example").apply { mkdirs() }
-    println(runImageProcessingDemo(outDir.absolutePath))
+fun main(args: Array<String>) {
+    Gallery().use { gallery ->
+        println("== basic ==")
+        println(runBasicDemo())
+        println("== image processing ==")
+        val outDir = File(System.getProperty("java.io.tmpdir"), "opencv-kmp-example").apply { mkdirs() }
+        println(runImageProcessingDemo(outDir.absolutePath, gallery))
+        println("== tutorials ==")
+        println(runTutorialDemos(gallery))
+        // Desktop presentation: every picture the demos produced opens in a
+        // highgui window; --hold=<ms> closes them after that delay instead of
+        // waiting for a key press.
+        gallery.imshowAll(args.imshowHoldMillis())
+    }
 }

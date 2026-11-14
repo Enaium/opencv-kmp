@@ -35,12 +35,14 @@ import cn.enaium.opencv.zeros
  * AKAZE_match.cpp): ORB keypoints + descriptors, brute-force matching with
  * a ratio test.
  */
-fun runFeaturesTutorials(assetsDir: String): String = buildString {
+fun runFeaturesTutorials(assetsDir: String, gallery: Gallery? = null): String = buildString {
     appendLine("-- ORB detection & matching --")
 
     val img1 = loadOr(assetsDir, "box.png") { syntheticShape(64) }
     val img2 = loadOr(assetsDir, "box_in_scene.png") { syntheticShape(64).also { s -> s.shiftInPlace(4, 3) } }
 
+    gallery?.add("ORB: image 1", img1)
+    gallery?.add("ORB: image 2", img2)
     img1.use { a ->
         img2.use { b ->
             orbCreate().use { orb ->

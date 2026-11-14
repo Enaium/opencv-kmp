@@ -5,6 +5,8 @@ import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
+    // Android variant consumed by examples/<name>/android (Compose UI).
+    alias(libs.plugins.android.kmp.library)
 }
 
 // Kotlin/Native's own Android toolchain sysroot ships the NDK stub libraries
@@ -26,6 +28,17 @@ kotlin {
     jvm {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+        }
+    }
+
+    // The shared demos compile into an Android variant here; the Compose
+    // application that presents them lives in examples/<name>/android.
+    android {
+        namespace = "cn.enaium.opencv.tutorial"
+        compileSdk = 36
+        minSdk = 26
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 
@@ -83,7 +96,9 @@ kotlin {
 
         commonMain {
             dependencies {
-                implementation(project(":opencv-kmp"))
+                // api: Gallery hands out Mats, so consumers (the Android app
+                // modules) need the OpenCV types on their classpath too.
+                api(project(":opencv-kmp"))
             }
         }
     }

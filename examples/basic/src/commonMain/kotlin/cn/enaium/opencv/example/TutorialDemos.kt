@@ -44,8 +44,9 @@ import cn.enaium.opencv.zeros
  */
 
 /** Morphology_1/2: erosion, dilation, opening and closing on a synthetic scene. */
-fun morphologyDemo(): String = buildString {
+fun morphologyDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { src ->
+        gallery?.add("morphology: source", src)
         getStructuringElement(MorphShapes.RECT, 3, 3).use { kernel ->
             src.erode(kernel).use { eroded ->
                 appendLine("erode   -> nonZero ${eroded.nonZeroCount} (was ${src.nonZeroCount})")
@@ -55,6 +56,7 @@ fun morphologyDemo(): String = buildString {
             }
             src.morphologyEx(MorphTypes.OPEN, kernel).use { opened ->
                 appendLine("open    -> nonZero ${opened.nonZeroCount} (speckles removed)")
+                gallery?.add("morphology: opened", opened)
             }
             src.morphologyEx(MorphTypes.CLOSE, kernel).use { closed ->
                 appendLine("close   -> nonZero ${closed.nonZeroCount} (pinholes filled)")
@@ -64,9 +66,10 @@ fun morphologyDemo(): String = buildString {
 }
 
 /** Threshold tutorial: binary, inverse-binary and tozero over a gradient. */
-fun thresholdDemo(): String = buildString {
+fun thresholdDemo(gallery: Gallery? = null): String = buildString {
     gradientRamp().use { gray ->
         gray.threshold(128.0, 255.0, ThresholdTypes.BINARY).use { binary ->
+            gallery?.add("threshold: binary", binary)
             var white = 0
             for (c in 0 until binary.cols) if (binary[0, c] > 0) white++
             appendLine("binary  -> white pixels: $white (expect ~128)")
@@ -83,10 +86,11 @@ fun thresholdDemo(): String = buildString {
 }
 
 /** Color spaces: BGR -> GRAY plus channel split/merge round trip. */
-fun colorSpacesDemo(): String = buildString {
+fun colorSpacesDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { bgr ->
         bgr.toGray().use { gray ->
             appendLine("gray    -> shape=${gray.shape}, channels=${gray.channels}")
+            gallery?.add("color spaces: gray", gray)
         }
         val planes = bgr.split()
         try {
@@ -104,10 +108,11 @@ fun colorSpacesDemo(): String = buildString {
 }
 
 /** Hough transform: Canny edges fed to standard and probabilistic Hough. */
-fun houghLinesDemo(): String = buildString {
+fun houghLinesDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { scene ->
         scene.toGray().use { gray ->
             gray.canny(threshold1 = 50.0, threshold2 = 150.0).use { edges ->
+                gallery?.add("hough: canny edges", edges)
                 edges.houghLinesP(rho = 1.0, theta = PI / 180.0, threshold = 40).use { segments ->
                     appendLine("HoughLinesP -> ${segments.rows} segment rows (${segments.shape})")
                 }
@@ -120,7 +125,7 @@ fun houghLinesDemo(): String = buildString {
 }
 
 /** Geometric transforms: rotate about the center, then a pyramid round trip. */
-fun geometricTransformsDemo(): String = buildString {
+fun geometricTransformsDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { scene ->
         getRotationMatrix2D(
             center = Point(scene.cols / 2, scene.rows / 2),
@@ -129,6 +134,7 @@ fun geometricTransformsDemo(): String = buildString {
         ).use { rotation ->
             scene.warpAffine(rotation, width = scene.cols, height = scene.rows).use { rotated ->
                 appendLine("rotated 45° -> shape=${rotated.shape}")
+                gallery?.add("geometric: rotated", rotated)
             }
         }
         scene.pyrDown().use { down ->
@@ -155,11 +161,12 @@ fun histogramEqualizationDemo(): String = buildString {
 }
 
 /** Drawing primitives summary: rect + circle + line on a canvas. */
-fun drawingDemo(): String = buildString {
+fun drawingDemo(gallery: Gallery? = null): String = buildString {
     zeros(240, 320, MatType.CV_8UC3).use { canvas ->
         canvas.rectangle(from = Point(20, 20), to = Point(140, 100), color = Scalar.bgr(255.0, 0.0, 0.0))
         canvas.circle(center = Point(220, 70), radius = 45, color = Scalar.bgr(0.0, 255.0, 0.0))
         canvas.line(from = Point(20, 200), to = Point(300, 200), color = Scalar.bgr(0.0, 0.0, 255.0))
+        gallery?.add("drawing: primitives", canvas)
         appendLine("drawing     -> blue rect, green circle, red line")
         appendLine("mean color  -> B=${canvas.mean.v0} G=${canvas.mean.v1} R=${canvas.mean.v2}")
     }
@@ -183,14 +190,14 @@ fun scalarArithmeticDemo(): String = buildString {
 }
 
 /** Runs every tutorial demo and returns the combined report. */
-fun runTutorialDemos(): String = buildString {
-    appendLine("-- morphology --"); appendLine(morphologyDemo())
-    appendLine("-- threshold --"); appendLine(thresholdDemo())
-    appendLine("-- color spaces --"); appendLine(colorSpacesDemo())
-    appendLine("-- hough lines --"); appendLine(houghLinesDemo())
-    appendLine("-- geometric transforms --"); appendLine(geometricTransformsDemo())
+fun runTutorialDemos(gallery: Gallery? = null): String = buildString {
+    appendLine("-- morphology --"); appendLine(morphologyDemo(gallery))
+    appendLine("-- threshold --"); appendLine(thresholdDemo(gallery))
+    appendLine("-- color spaces --"); appendLine(colorSpacesDemo(gallery))
+    appendLine("-- hough lines --"); appendLine(houghLinesDemo(gallery))
+    appendLine("-- geometric transforms --"); appendLine(geometricTransformsDemo(gallery))
     appendLine("-- histogram equalization --"); appendLine(histogramEqualizationDemo())
-    appendLine("-- drawing --"); appendLine(drawingDemo())
+    appendLine("-- drawing --"); appendLine(drawingDemo(gallery))
     appendLine("-- scalar arithmetic --"); appendLine(scalarArithmeticDemo())
 }
 

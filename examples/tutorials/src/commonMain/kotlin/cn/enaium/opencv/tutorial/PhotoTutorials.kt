@@ -35,12 +35,12 @@ import cn.enaium.opencv.zeros
  *  - Non-local means denoising on a synthetic noisy image.
  *  - Inpainting a synthetic scratch over a banded pattern.
  */
-fun runPhotoTutorials(): String = buildString {
+fun runPhotoTutorials(gallery: Gallery? = null): String = buildString {
     appendLine("-- denoising --")
-    denoisingDemo().also { append(it) }
+    denoisingDemo(gallery).also { append(it) }
 
     appendLine("-- inpainting --")
-    inpaintingDemo().also { append(it) }
+    inpaintingDemo(gallery).also { append(it) }
 }
 
 private fun bandedPattern(): Mat {
@@ -52,11 +52,13 @@ private fun bandedPattern(): Mat {
     return m
 }
 
-private fun denoisingDemo(): String = buildString {
+private fun denoisingDemo(gallery: Gallery? = null): String = buildString {
     bandedPattern().use { clean ->
         val noisy = clean.clone().addSpeckle(seed = 7, sigma = 30.0)
         noisy.use { n ->
+            gallery?.add("denoising: noisy", n)
             photoFastNlMeansDenoising(n, h = 12f).use { denoised ->
+                gallery?.add("denoising: restored", denoised)
                 line("noise delta   (source)", "${avgAbsDelta(clean, n)}")
                 line("denoised delta", "${avgAbsDelta(clean, denoised)}")
             }
@@ -65,7 +67,7 @@ private fun denoisingDemo(): String = buildString {
     }
 }
 
-private fun inpaintingDemo(): String = buildString {
+private fun inpaintingDemo(gallery: Gallery? = null): String = buildString {
     bandedPattern().use { clean ->
         val damaged = clean.clone()
         damaged.rectangle(Point(12, 20), Point(60, 26), Scalar.all(0.0), FILLED)
@@ -75,9 +77,11 @@ private fun inpaintingDemo(): String = buildString {
         mask.rectangle(Point(12, 20), Point(60, 26), Scalar.all(255.0), FILLED)
         mask.rectangle(Point(30, 8), Point(36, 64), Scalar.all(255.0), FILLED)
 
+        gallery?.add("inpainting: damaged", damaged)
         mask.use { m ->
             damaged.use { d ->
                 photoInpaint(d, m, 3.0).use { restored ->
+                    gallery?.add("inpainting: restored", restored)
                     line("damaged delta", "${avgAbsDelta(clean, d)}")
                     line("restored delta", "${avgAbsDelta(clean, restored)}")
                 }

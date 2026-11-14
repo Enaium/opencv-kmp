@@ -21,9 +21,14 @@
  */
 package cn.enaium.opencv.tutorial
 
-fun main() {
+fun main(args: Array<String>) {
     // Sample images come from the opencv submodule's samples/data directory
     // (auto-resolved by loadOr), so no bundled assets are needed.
     println("cwd=" + System.getProperty("user.dir"))
-    println(runTutorials(assetsDir = ""))
+    Gallery().use { gallery ->
+        println(runTutorials(assetsDir = "", gallery = gallery))
+        // Desktop presentation: every picture the tutorials produced opens in
+        // a highgui window; --hold=<ms> closes them after that delay.
+        gallery.imshowAll(args.imshowHoldMillis())
+    }
 }

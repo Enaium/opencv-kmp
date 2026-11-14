@@ -22,11 +22,17 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
 // K/N executables require a root-package main() entry point.
+import cn.enaium.opencv.tutorial.Gallery
+import cn.enaium.opencv.tutorial.imshowAll
+import cn.enaium.opencv.tutorial.imshowHoldMillis
 import cn.enaium.opencv.tutorial.runTutorials
 import kotlinx.cinterop.toKString
 import platform.posix.getenv
 
-fun main() {
+fun main(args: Array<String>) {
     val dir = getenv("OPENCV_KMP_TUTO_ASSETS")?.toKString() ?: ""
-    println(runTutorials(assetsDir = ""))
+    Gallery().use { gallery ->
+        println(runTutorials(assetsDir = dir, gallery = gallery))
+        gallery.imshowAll(args.imshowHoldMillis())
+    }
 }

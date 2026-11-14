@@ -39,7 +39,7 @@ import cn.enaium.opencv.shape
  * Synthesizes a gradient scene, runs a small imgproc pipeline and an encode/
  * decode round trip; returns a report string.
  */
-fun runImageProcessingDemo(outDir: String): String = buildString {
+fun runImageProcessingDemo(outDir: String, gallery: Gallery? = null): String = buildString {
     val width = 128
     val height = 96
 
@@ -64,15 +64,19 @@ fun runImageProcessingDemo(outDir: String): String = buildString {
             thickness = LineTypes.FILLED,
         )
         appendLine("canvas      -> ${canvas.shape}, blueMean=${canvas.mean.v0}")
+        gallery?.add("image processing: canvas", canvas)
 
         canvas.gaussianBlur(kernelWidth = 7, kernelHeight = 7).use { blurred ->
             blurred.cvtColor(ColorConversionCodes.BGR2GRAY).use { gray ->
+                gallery?.add("image processing: blurred gray", gray)
                 gray.threshold(128.0, 255.0, ThresholdTypes.BINARY).use { binary ->
                     val edges = binary.canny(threshold1 = 50.0, threshold2 = 150.0)
                     edges.use {
                         appendLine("binary mask -> nonZero=${binary.nonZeroCount}")
                         appendLine("edges       -> ${edges.shape}, nonZero=${edges.nonZeroCount}")
 
+                        gallery?.add("image processing: binary mask", binary)
+                        gallery?.add("image processing: canny edges", edges)
                         val png = imencode("png", edges)
                         appendLine("encoded png -> ${png.size} bytes, magic=${png.take(4).map { it.toUByte() }}")
 
@@ -88,6 +92,7 @@ fun runImageProcessingDemo(outDir: String): String = buildString {
 
             canvas.resize(width / 2, height / 2).use { small ->
                 appendLine("resized     -> ${small.shape}")
+                gallery?.add("image processing: resized", small)
             }
 
             val path = "$outDir/demo_canvas.png"

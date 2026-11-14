@@ -21,17 +21,26 @@
  */
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
 
+import cn.enaium.opencv.example.Gallery
+import cn.enaium.opencv.example.imshowAll
+import cn.enaium.opencv.example.imshowHoldMillis
 import cn.enaium.opencv.example.runBasicDemo
 import cn.enaium.opencv.example.runImageProcessingDemo
+import cn.enaium.opencv.example.runTutorialDemos
 import kotlinx.cinterop.toKString
 import platform.posix.getenv
 
-fun main() {
-    println("== basic ==")
-    println(runBasicDemo())
-    println("== image processing ==")
+fun main(args: Array<String>) {
     // POSIX mkdir takes a mode argument while MinGW does not; writing straight
     // into the temporary directory keeps this source set portable.
     val outDir = getenv("TMPDIR")?.toKString() ?: getenv("TEMP")?.toKString() ?: "/tmp"
-    println(runImageProcessingDemo(outDir))
+    Gallery().use { gallery ->
+        println("== basic ==")
+        println(runBasicDemo())
+        println("== image processing ==")
+        println(runImageProcessingDemo(outDir, gallery))
+        println("== tutorials ==")
+        println(runTutorialDemos(gallery))
+        gallery.imshowAll(args.imshowHoldMillis())
+    }
 }

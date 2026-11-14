@@ -35,23 +35,25 @@ import cn.enaium.opencv.zeros
  *  - Pyramids (Pyramids.cpp)
  * Every demo uses a synthetic scene or the bundled [assetsDir] images.
  */
-fun runImgprocTutorials(assetsDir: String): String = buildString {
+fun runImgprocTutorials(assetsDir: String, gallery: Gallery? = null): String = buildString {
     appendLine("-- template matching --")
-    templateMatchingDemo(assetsDir).also { append(it) }
+    templateMatchingDemo(assetsDir, gallery).also { append(it) }
 
     appendLine("-- smoothing --")
-    smoothingDemo().also { append(it) }
+    smoothingDemo(gallery).also { append(it) }
 
     appendLine("-- pyramids --")
-    pyramidsDemo().also { append(it) }
+    pyramidsDemo(gallery).also { append(it) }
 }
 
-private fun templateMatchingDemo(assetsDir: String): String = buildString {
+private fun templateMatchingDemo(assetsDir: String, gallery: Gallery? = null): String = buildString {
     // The template is cut from the same synthetic scene (the 24x16 bright
     // block at 12,12), so the normalized match must peak at ~1.0.
     val scene = syntheticScene()
     val templ = scene.roi(Rect(12, 12, 24, 16)).clone()
     scene.use { src ->
+        gallery?.add("template matching: scene", src)
+        gallery?.add("template matching: template", templ)
         templ.use { t ->
             src.matchTemplate(t, TemplateMatchModes.CCOEFF_NORMED).use { res ->
                 val mm = res.minMaxLoc()
@@ -64,18 +66,23 @@ private fun templateMatchingDemo(assetsDir: String): String = buildString {
     }
 }
 
-private fun smoothingDemo(): String = buildString {
+private fun smoothingDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { src ->
-        src.gaussianBlur(5, 5, 1.5).use { g -> line("gaussian delta", "${avgDelta(src, g)}") }
+        gallery?.add("smoothing: source", src)
+        src.gaussianBlur(5, 5, 1.5).use { g ->
+            gallery?.add("smoothing: gaussian", g)
+            line("gaussian delta", "${avgDelta(src, g)}")
+        }
         src.medianBlur(5).use { m -> line("median   delta", "${avgDelta(src, m)}") }
         src.bilateralFilter(9, 90.0, 90.0).use { b -> line("bilateral delta", "${avgDelta(src, b)}") }
     }
 }
 
-private fun pyramidsDemo(): String = buildString {
+private fun pyramidsDemo(gallery: Gallery? = null): String = buildString {
     syntheticScene().use { src ->
         src.resize(32, 24).use { down ->
             line("reduced size", "${down.rows}x${down.cols} (was ${src.rows}x${src.cols})")
+            gallery?.add("pyramids: reduced", down)
             down.resize(64, 48).use { up ->
                 line("restored size", "${up.rows}x${up.cols}")
                 line("roundtrip delta", "${avgDelta(src, up)}")

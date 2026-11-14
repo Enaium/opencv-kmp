@@ -25,25 +25,25 @@ package cn.enaium.opencv.tutorial
  * Aggregates every module tutorial into one report. [assetsDir] points at
  * the directory holding the optional sample images (blank to skip assets).
  */
-fun runTutorials(assetsDir: String): String = buildString {
+fun runTutorials(assetsDir: String, gallery: Gallery? = null): String = buildString {
     appendLine("# imgproc")
-    append(runImgprocTutorials(assetsDir))
+    append(runImgprocTutorials(assetsDir, gallery))
 
     appendLine("# video")
-    append(runVideoTutorials())
+    append(runVideoTutorials(gallery))
 
     appendLine("# features")
-    append(runFeaturesTutorials(assetsDir))
+    append(runFeaturesTutorials(assetsDir, gallery))
 
     appendLine("# objdetect")
-    append(runObjdetectTutorials())
+    append(runObjdetectTutorials(gallery))
 
     appendLine("# photo")
-    append(runPhotoTutorials())
+    append(runPhotoTutorials(gallery))
 
     appendLine("# calib3d")
-    append(runCalib3dTutorials())
+    append(runCalib3dTutorials(gallery))
 
     appendLine("# highgui")
-    append(runHighGuiTutorials())
+    append(runHighGuiTutorials(gallery))
 }

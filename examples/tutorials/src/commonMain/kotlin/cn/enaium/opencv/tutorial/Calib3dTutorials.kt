@@ -37,9 +37,9 @@ import cn.enaium.opencv.vectorPoint3fToMat
  * then run [calibrateCamera] over several synthetic views and report the
  * recovered intrinsic matrix.
  */
-fun runCalib3dTutorials(): String = buildString {
+fun runCalib3dTutorials(gallery: Gallery? = null): String = buildString {
     appendLine("-- chessboard detection --")
-    chessboardDemo().also { append(it) }
+    chessboardDemo(gallery).also { append(it) }
 
     appendLine("-- camera calibration --")
     calibrationDemo().also { append(it) }
@@ -65,8 +65,9 @@ private fun drawBoard(cols: Int, rows: Int): Mat {
     return m
 }
 
-private fun chessboardDemo(): String = buildString {
+private fun chessboardDemo(gallery: Gallery? = null): String = buildString {
     drawBoard(BOARD_COLS, BOARD_ROWS).use { board ->
+        gallery?.add("calib3d: chessboard", board)
         line("board size", "${board.rows}x${board.cols}")
         val patternSize = Size(BOARD_COLS - 1, BOARD_ROWS - 1)
         val res = findChessboardCorners(board, patternSize)

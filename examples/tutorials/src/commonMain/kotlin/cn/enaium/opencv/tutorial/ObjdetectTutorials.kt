@@ -31,17 +31,18 @@ import cn.enaium.opencv.qrCodeEncoderCreate
  *    [qrCodeDetectorCreate] detect + decode round-trip.
  * Everything is synthesized; no external model files are downloaded.
  */
-fun runObjdetectTutorials(): String = buildString {
+fun runObjdetectTutorials(gallery: Gallery? = null): String = buildString {
     appendLine("-- QR encode/detect/decode round trip --")
-    qrDemo().also { append(it) }
+    qrDemo(gallery).also { append(it) }
 }
 
-private fun qrDemo(): String = buildString {
+private fun qrDemo(gallery: Gallery? = null): String = buildString {
     // QRCodeEncoder emits a tight grayscale pattern; upscale it to give the
     // detector a realistic input size and verify the payload survives.
     qrCodeEncoderCreate().use { encoder ->
         encoder.encode("opencv-kmp tutorial").use { qr ->
             qr.resize(300, 300).use { large ->
+                gallery?.add("QR: encoded", large)
                 line("encoded size", "${qr.rows}x${qr.cols} -> ${large.rows}x${large.cols}")
 
                 qrCodeDetectorCreate().use { detector ->

@@ -32,11 +32,12 @@ import cn.enaium.opencv.waitKey
  * waitKey so the window is painted, then tear it down. macOS/Windows open
  * real windows; the builtin headless backend (Linux CI) reports to stderr.
  */
-fun runHighGuiTutorials(): String = buildString {
+fun runHighGuiTutorials(gallery: Gallery? = null): String = buildString {
     appendLine("-- imshow / namedWindow / waitKey --")
     // Demo-size image (480x640) so the window is clearly visible; the raw
     // scene is small (48x64), which would open a tiny window.
     syntheticScene(rows = 480, cols = 640).use { img ->
+        gallery?.add("highgui: scene", img)
         namedWindow("tutorial")
         imshow("tutorial", img)
         // Hold for a few seconds so the user can see the window before it
