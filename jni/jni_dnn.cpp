@@ -125,24 +125,6 @@ Java_cn_enaium_opencv_JniDnn_dnnReadNetFromOnnxBuffer(JNIEnv *, jobject, jlong b
 }
 
 JNIEXPORT jlong JNICALL
-Java_cn_enaium_opencv_JniDnn_dnnReadNetFromTensorflow(JNIEnv *env, jobject, jstring model,
-                                                      jstring config, jint engine) {
-    const char *model_s = env->GetStringUTFChars(model, nullptr);
-    const char *config_s = config != nullptr ? env->GetStringUTFChars(config, nullptr) : nullptr;
-    cvk_net_t *net = cvk_dnn_read_net_from_tensorflow(model_s, config_s, engine);
-    env->ReleaseStringUTFChars(model, model_s);
-    if (config_s != nullptr) env->ReleaseStringUTFChars(config, config_s);
-    return reinterpret_cast<jlong>(net);
-}
-
-JNIEXPORT jlong JNICALL
-Java_cn_enaium_opencv_JniDnn_dnnReadNetFromTensorflowBuffer(JNIEnv *, jobject, jlong buffer_model,
-                                                            jlong buffer_config, jint engine) {
-    return reinterpret_cast<jlong>(cvk_dnn_read_net_from_tensorflow_buffer(
-        as_mat(buffer_model), buffer_config != 0 ? as_mat(buffer_config) : nullptr, engine));
-}
-
-JNIEXPORT jlong JNICALL
 Java_cn_enaium_opencv_JniDnn_dnnReadNetFromTflite(JNIEnv *env, jobject, jstring model,
                                                   jint engine) {
     const char *model_s = env->GetStringUTFChars(model, nullptr);

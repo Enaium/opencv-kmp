@@ -39,8 +39,6 @@ import cvk.cvk_dnn_read_net_from_model_optimizer
 import cvk.cvk_dnn_read_net_from_model_optimizer_buffer
 import cvk.cvk_dnn_read_net_from_onnx
 import cvk.cvk_dnn_read_net_from_onnx_buffer
-import cvk.cvk_dnn_read_net_from_tensorflow
-import cvk.cvk_dnn_read_net_from_tensorflow_buffer
 import cvk.cvk_dnn_read_net_from_tflite
 import cvk.cvk_dnn_read_net_from_tflite_buffer
 import cvk.cvk_dnn_read_tensor_from_onnx
@@ -495,19 +493,6 @@ actual fun dnnReadNetFromOnnx(onnxFile: String, engine: Int): Net? =
 
 actual fun dnnReadNetFromOnnxBuffer(buffer: MatOfByte, engine: Int): Net? =
     cvk_dnn_read_net_from_onnx_buffer(buffer.mat.nativeHandle(), engine)?.let { NativeNet(it) }
-
-actual fun dnnReadNetFromTensorflow(model: String, config: String, engine: Int): Net? =
-    cvk_dnn_read_net_from_tensorflow(model, config, engine)?.let { NativeNet(it) }
-
-actual fun dnnReadNetFromTensorflowBuffer(
-    bufferModel: MatOfByte,
-    bufferConfig: MatOfByte?,
-    engine: Int,
-): Net? = cvk_dnn_read_net_from_tensorflow_buffer(
-    bufferModel.mat.nativeHandle(),
-    bufferConfig?.mat?.nativeHandle(),
-    engine,
-)?.let { NativeNet(it) }
 
 actual fun dnnReadNetFromTflite(model: String, engine: Int): Net? =
     cvk_dnn_read_net_from_tflite(model, engine)?.let { NativeNet(it) }

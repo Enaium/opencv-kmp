@@ -442,7 +442,7 @@ interface Tokenizer : AutoCloseable {
 
 /**
  * Reads a network in one of the supported formats, auto-detecting the
- * framework (see [dnnReadNetFromOnnx], [dnnReadNetFromTensorflow]).
+ * framework (see [dnnReadNetFromOnnx], [dnnReadNetFromTflite]).
  * Returns null (recording the native error) when the model cannot be read.
  */
 expect fun dnnReadNet(
@@ -465,20 +465,6 @@ expect fun dnnReadNetFromOnnx(onnxFile: String, engine: Int = ENGINE_AUTO): Net?
 
 /** Reads an ONNX model from an in-memory buffer; null when invalid. */
 expect fun dnnReadNetFromOnnxBuffer(buffer: MatOfByte, engine: Int = ENGINE_AUTO): Net?
-
-/** Reads a TensorFlow model (.pb + optional .pbtxt); null when unreadable. */
-expect fun dnnReadNetFromTensorflow(
-    model: String,
-    config: String = "",
-    engine: Int = ENGINE_AUTO,
-): Net?
-
-/** Reads a TensorFlow model from in-memory buffers; null when invalid. */
-expect fun dnnReadNetFromTensorflowBuffer(
-    bufferModel: MatOfByte,
-    bufferConfig: MatOfByte? = null,
-    engine: Int = ENGINE_AUTO,
-): Net?
 
 /** Reads a TFLite model from a file; null when the file is missing/invalid. */
 expect fun dnnReadNetFromTflite(model: String, engine: Int = ENGINE_AUTO): Net?

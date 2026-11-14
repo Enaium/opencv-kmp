@@ -49,12 +49,6 @@ internal object JniDnn {
     ): Long
     external fun dnnReadNetFromOnnx(onnxFile: String, engine: Int): Long
     external fun dnnReadNetFromOnnxBuffer(buffer: Long, engine: Int): Long
-    external fun dnnReadNetFromTensorflow(model: String, config: String, engine: Int): Long
-    external fun dnnReadNetFromTensorflowBuffer(
-        bufferModel: Long,
-        bufferConfig: Long,
-        engine: Int,
-    ): Long
     external fun dnnReadNetFromTflite(model: String, engine: Int): Long
     external fun dnnReadNetFromTfliteBuffer(bufferModel: Long, engine: Int): Long
     external fun dnnReadNetFromModelOptimizer(xml: String, bin: String): Long

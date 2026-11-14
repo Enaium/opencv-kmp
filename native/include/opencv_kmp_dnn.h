@@ -54,11 +54,6 @@ cvk_net_t *cvk_dnn_read_net_buffer(const char *framework,
 
 cvk_net_t *cvk_dnn_read_net_from_onnx(const char *onnx_file, int engine);
 cvk_net_t *cvk_dnn_read_net_from_onnx_buffer(const cvk_mat_t *buffer, int engine);
-cvk_net_t *cvk_dnn_read_net_from_tensorflow(const char *model, const char *config,
-                                            int engine);
-cvk_net_t *cvk_dnn_read_net_from_tensorflow_buffer(const cvk_mat_t *buffer_model,
-                                                   const cvk_mat_t *buffer_config,
-                                                   int engine);
 cvk_net_t *cvk_dnn_read_net_from_tflite(const char *model, int engine);
 cvk_net_t *cvk_dnn_read_net_from_tflite_buffer(const cvk_mat_t *buffer_model, int engine);
 cvk_net_t *cvk_dnn_read_net_from_model_optimizer(const char *xml, const char *bin);
@@ -113,7 +108,8 @@ cvk_mat_t *cvk_dnn_get_available_targets(int backend);
 /** cv::dnn::getAvailableBackends(); returns an Nx2 CV_32SC2 Mat (backend, target) per row. */
 cvk_mat_t *cvk_dnn_get_available_backends(void);
 
-/** cv::dnn::writeTextGraph(model, output). */
+/** Loads [model] via cv::dnn::readNet and dumps its graph text to [output]
+ *  (cv::dnn::Net::dumpToFile; replaces the removed cv::dnn::writeTextGraph). */
 void cvk_dnn_write_text_graph(const char *model, const char *output);
 
 /* =========================================================================

@@ -380,19 +380,6 @@ actual fun dnnReadNetFromOnnx(onnxFile: String, engine: Int): Net? =
 actual fun dnnReadNetFromOnnxBuffer(buffer: MatOfByte, engine: Int): Net? =
     JniDnn.dnnReadNetFromOnnxBuffer(handleOf(buffer.mat), engine).takeIf { it != 0L }?.let(::JvmNet)
 
-actual fun dnnReadNetFromTensorflow(model: String, config: String, engine: Int): Net? =
-    JniDnn.dnnReadNetFromTensorflow(model, config, engine).takeIf { it != 0L }?.let(::JvmNet)
-
-actual fun dnnReadNetFromTensorflowBuffer(
-    bufferModel: MatOfByte,
-    bufferConfig: MatOfByte?,
-    engine: Int,
-): Net? = JniDnn.dnnReadNetFromTensorflowBuffer(
-    handleOf(bufferModel.mat),
-    bufferConfig?.let { handleOf(it.mat) } ?: 0L,
-    engine,
-).takeIf { it != 0L }?.let(::JvmNet)
-
 actual fun dnnReadNetFromTflite(model: String, engine: Int): Net? =
     JniDnn.dnnReadNetFromTflite(model, engine).takeIf { it != 0L }?.let(::JvmNet)
 

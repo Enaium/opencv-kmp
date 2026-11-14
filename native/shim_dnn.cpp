@@ -315,33 +315,6 @@ cvk_net_t *cvk_dnn_read_net_from_onnx_buffer(const cvk_mat_t *buffer, int engine
     });
 }
 
-cvk_net_t *cvk_dnn_read_net_from_tensorflow(const char *model, const char *config,
-                                            int engine) {
-    return guarded([&]() -> cvk_net_t * {
-        auto *h = new cvk_net;
-        h->ptr.reset(new cv::dnn::Net(cv::dnn::readNetFromTensorflow(
-            model, config != nullptr ? config : "", engine)));
-        return reinterpret_cast<cvk_net_t *>(h);
-    });
-}
-
-cvk_net_t *cvk_dnn_read_net_from_tensorflow_buffer(const cvk_mat_t *buffer_model,
-                                                   const cvk_mat_t *buffer_config,
-                                                   int engine) {
-    return guarded([&]() -> cvk_net_t * {
-        const cv::Mat &model = *require_const(buffer_model);
-        std::vector<uchar> model_bytes = decode_byte_mat(model, "model buffer");
-        std::vector<uchar> config_bytes;
-        if (buffer_config != nullptr) {
-            config_bytes = decode_byte_mat(*require_const(buffer_config), "config buffer");
-        }
-        auto *h = new cvk_net;
-        h->ptr.reset(new cv::dnn::Net(
-            cv::dnn::readNetFromTensorflow(model_bytes, config_bytes, engine)));
-        return reinterpret_cast<cvk_net_t *>(h);
-    });
-}
-
 cvk_net_t *cvk_dnn_read_net_from_tflite(const char *model, int engine) {
     return guarded([&]() -> cvk_net_t * {
         auto *h = new cvk_net;
@@ -563,7 +536,10 @@ cvk_mat_t *cvk_dnn_get_available_backends(void) {
 
 void cvk_dnn_write_text_graph(const char *model, const char *output) {
     guarded([&]() -> int {
-        cv::dnn::writeTextGraph(model, output);
+        // cv::dnn::writeTextGraph was removed in OpenCV 5.1; the equivalent
+        // is loading the model and dumping the network graph as text.
+        cv::dnn::Net net = cv::dnn::readNet(model);
+        net.dumpToFile(output);
         return 0;
     });
 }

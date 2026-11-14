@@ -1,4 +1,4 @@
-Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.x, Android SDK API surface: `core` / `imgproc` / `imgcodecs` / `video` / `videoio` / `objdetect` / `dnn` / `photo` / `calib` / `features2d` / `stereo` / `ptcloud`).
+Kotlin Multiplatform bindings for [OpenCV](https://github.com/opencv/opencv) (5.1.0, Android SDK API surface: `core` / `imgproc` / `imgcodecs` / `video` / `videoio` / `objdetect` / `dnn` / `photo` / `calib` / `features2d` / `stereo` / `ptcloud`).
 
 - **Kotlin/Native** — OpenCV is compiled statically per target and embedded into the published klib through cinterop; consumers link it without any extra setup.
 - **JVM (desktop + Android)** — a self-contained JNI shared library (`libopencv_jni`) is built from the OpenCV submodule and shipped as a classpath resource per OS/arch; `NativeLoader` extracts and loads the matching one at runtime.
