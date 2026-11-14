@@ -18,7 +18,7 @@ env:
 jobs:
   publish-macos:
     name: Publish macOS platforms to Maven Local
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
