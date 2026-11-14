@@ -79,6 +79,13 @@ object JniModules {
             return File(tag, "sysroot/usr/include").absolutePath
         }
 
+        fun ndkStripExecutable(): String? {
+            val ndk = ndkPath() ?: return null
+            val tag = File(ndk, "toolchains/llvm/prebuilt").listFiles()
+                ?.firstOrNull { it.isDirectory } ?: return null
+            return File(tag, "bin/llvm-strip").absolutePath
+        }
+
         val parts = classifier.split('-')
         require(parts.size >= 2) { "invalid classifier '$classifier'" }
 
@@ -232,7 +239,21 @@ object JniModules {
             onlyIf { canBuildHere }
             dependsOn(configureJniLibrary)
             workingDir = cmakeBuildDir.get().asFile
-            commandLine(resolveCmakeExecutable(), "--build", ".", "--config", "Release")
+            // Android artifacts only build on Linux hosts (see buildability), so
+            // a shell is always available to chain the strip step. Without it the
+            // unstripped library is ~10x larger, and AGP only strips jniLibs when
+            // the consuming module pins an NDK.
+            val strip = if (classifier.startsWith("android-")) ndkStripExecutable() else null
+            if (strip != null) {
+                commandLine(
+                    "bash",
+                    "-c",
+                    "${resolveCmakeExecutable()} --build . --config Release && " +
+                            "$strip --strip-unneeded ${nativeOutputDir.get().file(libFile).asFile.absolutePath}",
+                )
+            } else {
+                commandLine(resolveCmakeExecutable(), "--build", ".", "--config", "Release")
+            }
             inputs.files(
                 project.rootProject.file("native/CMakeLists.txt"),
                 project.rootProject.file("native/cmake/merge_static.cmake"),
