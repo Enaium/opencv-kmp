@@ -1,0 +1,12 @@
+name: RunnerProbe
+"on":
+  workflow_dispatch:
+jobs:
+  macos14:
+    runs-on: macos-14
+    steps:
+      - run: uname -a
+  macos15:
+    runs-on: macos-15
+    steps:
+      - run: uname -a
