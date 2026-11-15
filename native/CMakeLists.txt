@@ -15,7 +15,11 @@ cmake_minimum_required(VERSION 3.16)
 # (-DCMAKE_SYSTEM_NAME / -DCMAKE_C(XX)_COMPILER / NDK toolchain file /
 # -DCMAKE_OSX_ARCHITECTURES); nothing here is host-specific.
 
-project(opencv_kmp_native LANGUAGES C CXX ASM)
+# OpenCV enables the ASM language itself. Declaring it here would cache the
+# probe before OpenCV/MLAS run theirs, which on a cross-arch macOS configure
+# (-DCMAKE_OSX_ARCHITECTURES=x86_64 on an arm64 host) left
+# CMAKE_ASM_COMPILER=/usr/bin/false in the cache and broke the MLAS kernels.
+project(opencv_kmp_native LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -120,14 +120,11 @@ object JniModules {
                     "aarch64" -> "arm64"
                     else -> parts.last()
                 }
-                // Build only when the HOST arch matches the target: OpenCV's
-                // MLAS module derives its target from the host CPU (CMake
-                // ignores CMAKE_SYSTEM_PROCESSOR overrides in non-cross Darwin
-                // mode), so an arm64 host would compile ARM64 dnn kernels for
-                // a darwin-x86_64 artifact. ort x86_64 darwin libs are built
-                // on Intel runners (macos-13) and arm64 ones on arm64 runners.
-                (host.isMacOsX && hostArch in setOf("aarch64", "arm64") && arch == "arm64" ||
-                        host.isMacOsX && hostArch == "x86_64") to listOf(
+                // OpenCV 5.1.0's MLAS derives its target from
+                // CMAKE_OSX_ARCHITECTURES, so one macOS host builds both
+                // slices. Before that, only a matching-host slice could be
+                // built and the other darwin artifact was published empty.
+                host.isMacOsX to listOf(
                     "-DCMAKE_OSX_ARCHITECTURES=$arch",
                     "-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0",
                 ) + if (arch == "x86_64") listOf(
