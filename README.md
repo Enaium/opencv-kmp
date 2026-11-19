@@ -51,6 +51,8 @@ dependencies {
 }
 ```
 
+Versions follow `<kmp version>-fixed.<pinned OpenCV version>` (for example `1.0.2-fixed.5.1.0`): the first number is this module's own release counter, the second the OpenCV tag the submodule is pinned to.
+
 The JVM artifact bundles all nine JNI libraries (~9 × a few MB); Android apps get the right one automatically — the per-ABI AARs carry `jni/<abi>/libopencv_jni.so`, so no manual `jniLibs` wiring or `abiFilters` are needed. `examples/basic/android` and `examples/tutorials/android` are Compose apps that exercise this path, and CI asserts their assembled APKs contain `lib/<abi>/libopencv_jni.so`.
 
 ### API highlights
